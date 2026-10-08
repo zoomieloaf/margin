@@ -9,8 +9,7 @@
   "type": "module",
   "icon": "media/icon.png",
   "categories": [
-    "Other",
-    "Formatters"
+    "Other"
   ],
   "keywords": [
     "markdown",

@@ -41,9 +41,12 @@ Undo and redo use VS Code's own history, so Ctrl+Z works across Margin, the text
 | Inline code | Ctrl+\` | Cmd+\` |
 | Link | Ctrl+K | Cmd+K |
 | Line break inside a block | Shift+Enter | Shift+Enter |
+| Undo / redo (VS Code's history) | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z | Cmd+Z / Cmd+Shift+Z or Cmd+Y |
 | Indent / outdent list item | Tab / Shift+Tab | Tab / Shift+Tab |
 | Next / previous table cell (Tab in the last cell adds a row) | Tab / Shift+Tab | Tab / Shift+Tab |
 | Cell below in a table (adds a row at the end) | Enter | Enter |
+
+While a Margin editor has focus, these shortcuts belong to Margin: for example Ctrl+B makes text bold instead of toggling the sidebar, and Ctrl+K edits a link instead of starting a chord. Everywhere else they work as usual.
 
 ## Settings
 
@@ -57,7 +60,7 @@ Undo and redo use VS Code's own history, so Ctrl+Z works across Margin, the text
 
 ## Privacy
 
-Margin works entirely offline. It makes no network requests and collects no telemetry. Links open only when you click them.
+Margin makes no network requests of its own. Remote images in your documents load like in VS Code's Markdown preview. Margin collects no telemetry, and links open only when you click them.
 
 ## Development
 
