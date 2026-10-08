@@ -27,6 +27,8 @@ const isMarginTab = (name: string) => {
   return input instanceof vscode.TabInputCustom && input.viewType === 'margin.editor' && input.uri.fsPath === file(name).fsPath;
 };
 
+const aiCalls = () => vscode.commands.executeCommand<{ clipboard: string[]; opened: string[]; asked: string[] }>('margin._test.aiCalls');
+
 const warnings = () => vscode.commands.executeCommand<Array<{ message: string; items: string[] }>>('margin._test.warnings');
 
 /** The first message the host posted to the Margin editor for `uri` that matches. */
@@ -252,6 +254,117 @@ const tests: Array<[string, () => Promise<void>]> = [
     assert.equal(doc.version, version);
     assert.equal(doc.getText(), text);
     assert.equal(doc.isDirty, false);
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  }],
+
+  ['the editor learns the margin.ai setting and whether a model exists (init, then aiAvailable)', async () => {
+    const uri = file('sample.md');
+    await vscode.commands.executeCommand('vscode.openWith', uri, 'margin.editor');
+    await until(() => isMarginTab('sample.md'), 'sample.md in Margin');
+    const init = await waitForPosted(uri, (m) => m.type === 'init');
+    assert.ok(init.type === 'init');
+    assert.equal(init.settings.ai, 'auto');
+    assert.equal(typeof init.settings.aiEditor, 'boolean');
+    const available = await waitForPosted(uri, (m) => m.type === 'aiAvailable');
+    // Copilot may or may not be installed here: only the shape is checked.
+    assert.ok(available.type === 'aiAvailable' && typeof available.editor === 'boolean');
+    const models = await vscode.lm.selectChatModels();
+    console.log(`    (this window has ${models.length} chat model(s))`);
+  }],
+
+  ['AI without a model (tier 2): asks once, copies the prompt, opens chatgpt.com, leaves the file alone', async () => {
+    const uri = file('sample.md');
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const text = doc.getText();
+    const version = doc.version;
+    await vscode.commands.executeCommand('margin._test.resetAiConsent');
+    await vscode.commands.executeCommand('margin._test.stubAi', { consent: true });
+    const selection = 'Some **bold** text.';
+    await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'ai', id: 'it-1', action: 'improve', markdown: selection });
+    await waitForPosted(uri, (m) => m.type === 'aiFallback' && m.id === 'it-1');
+    let calls = await aiCalls();
+    assert.deepEqual(calls.asked, ['chatgpt.com']);
+    assert.equal(calls.clipboard.length, 1);
+    const prompt = calls.clipboard[0]!;
+    assert.match(prompt, /Improve the writing/);
+    assert.match(prompt, /Return only the rewritten Markdown/);
+    assert.ok(prompt.includes(`\`\`\`markdown\n${selection}\n\`\`\``), 'the selection is in a fenced block');
+    assert.equal(calls.opened.length, 1);
+    const url = new URL(calls.opened[0]!);
+    assert.equal(url.origin + url.pathname, 'https://chatgpt.com/');
+    assert.equal(url.searchParams.get('q'), prompt);
+    const toast = await waitForPosted(uri, (m) => m.type === 'toast' && m.text.startsWith('Prompt copied'));
+    assert.match(toast.type === 'toast' ? toast.text : '', /paste the answer back with (Ctrl|Cmd)\+V/);
+
+    // Agreed once: the second action to chatgpt.com isn't asked about.
+    await vscode.commands.executeCommand('margin._test.stubAi', { consent: true });
+    await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'ai', id: 'it-2', action: 'continue', markdown: '', context: '# Plan' });
+    await waitForPosted(uri, (m) => m.type === 'aiFallback' && m.id === 'it-2');
+    calls = await aiCalls();
+    assert.deepEqual(calls.asked, []);
+    assert.match(calls.opened[0]!, /^https:\/\/chatgpt\.com\/\?q=/);
+
+    // The editor's chat view is another place (asked about once); when it fails, chatgpt.com opens.
+    await vscode.commands.executeCommand('margin._test.stubAi', { consent: true, chatView: true });
+    await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'ai', id: 'it-2b', action: 'continue', markdown: '', context: '# Plan' });
+    await waitForPosted(uri, (m) => m.type === 'aiFallback' && m.id === 'it-2b');
+    calls = await aiCalls();
+    assert.equal(calls.asked.length, 1);
+    assert.match(calls.asked[0]!, /'s chat \(or chatgpt\.com\)$/);
+    assert.match(calls.opened[0]!, /^https:\/\/chatgpt\.com\/\?q=/);
+
+    assert.equal(doc.getText(), text);
+    assert.equal(doc.version, version);
+  }],
+
+  ['AI with margin.ai = claude opens claude.ai; a long prompt opens the bare site', async () => {
+    const uri = file('sample.md');
+    const config = vscode.workspace.getConfiguration('margin');
+    await config.update('ai', 'claude', vscode.ConfigurationTarget.Global);
+    try {
+      await vscode.commands.executeCommand('margin._test.stubAi', { consent: true });
+      await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'ai', id: 'it-3', action: 'translate', lang: 'German', markdown: 'Hello' });
+      await waitForPosted(uri, (m) => m.type === 'aiFallback' && m.id === 'it-3');
+      let calls = await aiCalls();
+      assert.deepEqual(calls.asked, ['claude.ai']);
+      assert.match(calls.opened[0]!, /^https:\/\/claude\.ai\/new\?q=.*German/);
+
+      await vscode.commands.executeCommand('margin._test.stubAi', { consent: true });
+      await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'ai', id: 'it-4', action: 'summarize', markdown: 'word '.repeat(1000) });
+      await waitForPosted(uri, (m) => m.type === 'aiFallback' && m.id === 'it-4');
+      calls = await aiCalls();
+      assert.deepEqual(calls.opened, ['https://claude.ai/new']);
+      assert.ok(calls.clipboard[0]!.includes('word word'), 'the whole prompt is on the clipboard');
+      // The webview hears about the change of setting.
+      await waitForPosted(uri, (m) => m.type === 'aiAvailable' && m.setting === 'claude');
+    } finally {
+      await config.update('ai', undefined, vscode.ConfigurationTarget.Global);
+    }
+  }],
+
+  ['AI: Cancel on the first-use notice sends nothing; margin.ai = off runs nothing', async () => {
+    const uri = file('sample.md');
+    await vscode.commands.executeCommand('margin._test.resetAiConsent');
+    await vscode.commands.executeCommand('margin._test.stubAi', { consent: false });
+    await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'ai', id: 'it-5', action: 'shorten', markdown: 'Private text' });
+    const err = await waitForPosted(uri, (m) => m.type === 'aiError' && m.id === 'it-5');
+    assert.equal(err.type === 'aiError' && err.message, 'Nothing was sent.');
+    let calls = await aiCalls();
+    assert.deepEqual(calls.asked, ['chatgpt.com']);
+    assert.deepEqual([calls.clipboard, calls.opened], [[], []]);
+
+    const config = vscode.workspace.getConfiguration('margin');
+    await config.update('ai', 'off', vscode.ConfigurationTarget.Global);
+    try {
+      await vscode.commands.executeCommand('margin._test.stubAi', { consent: true });
+      await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'ai', id: 'it-6', action: 'shorten', markdown: 'Private text' });
+      await waitForPosted(uri, (m) => m.type === 'aiError' && m.id === 'it-6');
+      calls = await aiCalls();
+      assert.deepEqual([calls.asked, calls.clipboard, calls.opened], [[], [], []]);
+    } finally {
+      await config.update('ai', undefined, vscode.ConfigurationTarget.Global);
+      await vscode.commands.executeCommand('margin._test.resetAiConsent');
+    }
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   }],
 
