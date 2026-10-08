@@ -108,17 +108,19 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
           session.focused = m.type === 'focus';
           this.updateFocusContext();
           break;
+        // Started in order (they read the document before their first await) but not awaited:
+        // printing, or a notification waiting for a click, must not hold up the edits behind them.
         case 'openLink':
-          await openLink(document, m.href);
+          void openLink(document, m.href).catch(report);
           break;
         case 'exportPdf':
-          await exportPdf(document);
+          void exportPdf(document).catch(report);
           break;
         case 'exportHtml':
-          await exportHtml(document);
+          void exportHtml(document).catch(report);
           break;
         case 'copyMarkdown':
-          await copyMarkdown(document);
+          void copyMarkdown(document).catch(report);
           break;
         case 'log':
           console.log(`[margin] ${m.text}`);
@@ -181,6 +183,8 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
     this.changed.fire(s);
   }
 }
+
+const report = (err: unknown) => console.error('[margin]', err);
 
 async function openLink(document: vscode.TextDocument, href: string): Promise<void> {
   const target = linkTarget(href);
