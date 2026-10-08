@@ -1,4 +1,4 @@
-import { Fragment, Slice, type ResolvedPos } from 'prosemirror-model';
+import { Fragment, Slice, type Node as PmNode, type ResolvedPos } from 'prosemirror-model';
 import { parseMarkdown } from '../../md/parse';
 import { blockToPm } from './convert';
 import { schema } from './schema';
@@ -52,15 +52,28 @@ export function markdownTextParser(text: string, $context: ResolvedPos, plain: b
   const none = null as unknown as Slice;
   if (plain || !looksLikeMarkdown(text)) return none;
   for (let d = $context.depth; d > 0; d--) if ($context.node(d).type.spec.tableRole) return none;
+  return markdownSlice(text) ?? none;
+}
+
+/** The blocks Markdown `text` describes, with fresh ids. */
+export function markdownNodes(text: string): PmNode[] {
   const doc = parseMarkdown(text.replace(/\r\n?/g, '\n'));
   // Fresh ids: the parsed ids (b1, b2...) would collide with the document's own blocks.
-  const nodes = doc.blocks.map((b) => {
+  return doc.blocks.map((b) => {
     // Frontmatter only means frontmatter at the top of a file: pasted elsewhere, it's shown as code.
     if (b.data.type === 'yaml') return schema.nodes.code_block!.create({ lang: 'yaml' }, b.data.value ? schema.text(b.data.value) : null);
     const node = blockToPm(b);
     return node.type.create({ ...node.attrs, blockId: null }, node.content, node.marks);
   });
-  if (!nodes.length) return none;
+}
+
+/**
+ * Markdown `text` as a slice to put at the cursor (paste, an accepted AI suggestion); null when
+ * it has no blocks. A single paragraph is inline content.
+ */
+export function markdownSlice(text: string): Slice | null {
+  const nodes = markdownNodes(text);
+  if (!nodes.length) return null;
   const p = schema.nodes.paragraph!;
   if (nodes.length === 1 && nodes[0]!.type === p) {
     // Inline paste: keep the spaces around it, which Markdown parsing trims off a paragraph.
