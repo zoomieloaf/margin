@@ -38,6 +38,7 @@ async function open(text, mode = 'edit') {
   await page.evaluateOnNewDocument((t, m) => { window.__initialText = t; window.__mode = m; }, text, mode);
   await page.goto(harness);
   await page.waitForSelector('.ProseMirror');
+  await page.waitForSelector('.app[data-mode]'); // the init message has been applied
   await sleep(150);
   page.errors = errors;
   return page;
@@ -57,6 +58,31 @@ async function charXY(page, selector, n, offset) {
     const q = r.getBoundingClientRect();
     return { x: q.left + 1, y: q.top + q.height / 2 };
   }, selector, n, offset);
+}
+
+/**
+ * Clicks character `offset` of the n-th `selector` element and checks the caret really went there
+ * (right after the editor takes focus, a click can occasionally leave the caret at the start of the
+ * document; this was flaky before any of the fixes too). Retries a few times.
+ */
+async function clickChar(page, selector, n, offset) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    if (attempt) await sleep(600); // so the retry isn't taken as a double-click
+    const at = await charXY(page, selector, n, offset);
+    await page.mouse.click(at.x, at.y);
+    await sleep(60);
+    const caret = await page.evaluate((selector, n) => {
+      const el = document.querySelectorAll(selector)[n];
+      const s = getSelection();
+      if (!el || !s || !s.isCollapsed || !s.focusNode || !el.contains(s.focusNode)) return -1;
+      const r = document.createRange();
+      r.setStart(el, 0);
+      r.setEnd(s.focusNode, s.focusOffset);
+      return r.toString().length;
+    }, selector, n);
+    if (caret === offset) return;
+  }
+  throw new Error(`could not put the caret at ${selector}[${n}]:${offset}`);
 }
 
 const settle = async (page) => {
@@ -87,9 +113,8 @@ await test('renders the document in Preview, read-only', async () => {
 await test('bold across two paragraphs bolds only the selected parts', async () => {
   const src = 'First paragraph text.\n\nSecond paragraph text.\n';
   const page = await open(src);
-  const a = await charXY(page, '.ProseMirror p', 0, 6);
+  await clickChar(page, '.ProseMirror p', 0, 6);
   const b = await charXY(page, '.ProseMirror p', 1, 6);
-  await page.mouse.click(a.x, a.y);
   await page.keyboard.down('Shift');
   await page.mouse.click(b.x, b.y);
   await page.keyboard.up('Shift');
@@ -106,8 +131,7 @@ await test('bold across two paragraphs bolds only the selected parts', async () 
 await test('Enter splits a paragraph and only that block changes', async () => {
   const src = '# Keep  this\n\nHello world\n\n* keep\n* style\n';
   const page = await open(src);
-  const at = await charXY(page, '.ProseMirror p', 0, 5);
-  await page.mouse.click(at.x, at.y);
+  await clickChar(page, '.ProseMirror p', 0, 5);
   await page.keyboard.press('Enter');
   assert.equal(await settle(page), '# Keep  this\n\nHello\n\nworld\n\n* keep\n* style\n');
   await page.close();
@@ -115,8 +139,7 @@ await test('Enter splits a paragraph and only that block changes', async () => {
 
 await test('slash menu inserts a heading', async () => {
   const page = await open('Intro\n');
-  const at = await charXY(page, '.ProseMirror p', 0, 5);
-  await page.mouse.click(at.x, at.y);
+  await clickChar(page, '.ProseMirror p', 0, 5);
   await page.keyboard.press('Enter');
   await page.keyboard.type('/');
   await page.waitForSelector('.menu:not([hidden])');
@@ -132,8 +155,7 @@ await test('slash menu inserts a heading', async () => {
 
 await test('typing "- " starts a list and "[] " makes a task', async () => {
   const page = await open('Intro\n');
-  const at = await charXY(page, '.ProseMirror p', 0, 5);
-  await page.mouse.click(at.x, at.y);
+  await clickChar(page, '.ProseMirror p', 0, 5);
   await page.keyboard.press('Enter');
   await page.keyboard.type('[] Ship it');
   assert.equal(await settle(page), 'Intro\n\n- [ ] Ship it\n');
@@ -147,10 +169,22 @@ await test('clicking a task checkbox in Preview toggles only that item', async (
   await page.close();
 });
 
+await test('a checkbox click changes one character even in an unusually written list', async () => {
+  const src = '1.  [ ] 3 * 4\n1.  [ ] b\n    -   [X] c\n';
+  const page = await open(src, 'preview');
+  const boxes = await page.$$('.cb');
+  await boxes[1].click();
+  assert.equal(await settle(page), '1.  [ ] 3 * 4\n1.  [x] b\n    -   [X] c\n');
+  await (await page.$$('.cb'))[2].click();
+  assert.equal(await settle(page), '1.  [ ] 3 * 4\n1.  [x] b\n    -   [ ] c\n');
+  assert.equal(await page.$$eval('.cb.on', (els) => els.length), 1);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
 await test('Ctrl+Z is sent to VS Code instead of undoing in the webview', async () => {
   const page = await open('Hello\n');
-  const at = await charXY(page, '.ProseMirror p', 0, 5);
-  await page.mouse.click(at.x, at.y);
+  await clickChar(page, '.ProseMirror p', 0, 5);
   await page.keyboard.down(mod);
   await page.keyboard.press('z');
   await page.keyboard.up(mod);
@@ -162,8 +196,7 @@ await test('Ctrl+Z is sent to VS Code instead of undoing in the webview', async 
 
 await test('Ctrl+Z right after typing sends the edit first, then exactly one undo', async () => {
   const page = await open('Hello\n');
-  const at = await charXY(page, '.ProseMirror p', 0, 5);
-  await page.mouse.click(at.x, at.y);
+  await clickChar(page, '.ProseMirror p', 0, 5);
   await page.keyboard.type('!');
   await page.keyboard.down(mod);
   await page.keyboard.press('z');
@@ -177,8 +210,7 @@ await test('Ctrl+Z right after typing sends the edit first, then exactly one und
 
 await test('Ctrl+Y and Ctrl+Shift+Z each send one redo', async () => {
   const page = await open('Hello\n');
-  const at = await charXY(page, '.ProseMirror p', 0, 5);
-  await page.mouse.click(at.x, at.y);
+  await clickChar(page, '.ProseMirror p', 0, 5);
   await page.keyboard.down(mod);
   await page.keyboard.press('y');
   await page.keyboard.down('Shift');
@@ -193,8 +225,7 @@ await test('Ctrl+Y and Ctrl+Shift+Z each send one redo', async () => {
 
 await test('the webview reports focus and blur to the host', async () => {
   const page = await open('Hello\n');
-  const at = await charXY(page, '.ProseMirror p', 0, 2);
-  await page.mouse.click(at.x, at.y);
+  await clickChar(page, '.ProseMirror p', 0, 2);
   await page.evaluate(() => { window.dispatchEvent(new Event('blur')); window.dispatchEvent(new Event('focus')); });
   const posted = await page.evaluate(() => window.host.posted.map((m) => m.type).filter((t) => t === 'focus' || t === 'blur'));
   assert.deepEqual(posted.slice(-2), ['blur', 'focus']);

@@ -3,6 +3,7 @@ import { EditorState, TextSelection, type Transaction } from 'prosemirror-state'
 import { joinBackward, splitBlock } from 'prosemirror-commands';
 import { applyEdit } from '../../src/md/edits';
 import { parseMarkdown } from '../../src/md/parse';
+import { clickTask, taskTarget } from '../../src/webview/editor/commands';
 import { uniqueIds } from '../../src/webview/editor/ids';
 import { DocModel, type OutgoingEdit } from '../../src/webview/editor/model';
 import { schema } from '../../src/webview/editor/schema';
@@ -106,6 +107,55 @@ describe('DocModel', () => {
     const listPos = t.state.doc.child(0).nodeSize;
     t.apply((s) => s.tr.setNodeMarkup(listPos + 1, undefined, { checked: true, spread: false }));
     expect(t.sync()).toBe('Intro\n\n- [x] a\n- [x] b\n');
+  });
+
+  describe('toggleTask (checkbox click)', () => {
+    /** What the app does on a checkbox click: bring the model up to date, then clickTask. Returns whether the model took the fast path. */
+    function click(t: ReturnType<typeof setup>, nth: number) {
+      const positions: number[] = [];
+      t.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'list_item' && node.attrs.checked !== null) positions.push(pos);
+        return true;
+      });
+      const pos = positions[nth]!;
+      expect(taskTarget(t.state, pos)).not.toBeNull();
+      t.model.change(t.state.doc);
+      let fast = false;
+      const model = { toggleTask: (id: string, path: number[]) => { const node = t.model.toggleTask(id, path); fast = node !== null; return node; } };
+      t.run((s, d) => clickTask({ state: s, dispatch: d }, pos, model));
+      return fast;
+    }
+    const oneCharDiff = (a: string, b: string) => a.length === b.length && [...a].filter((ch, i) => ch !== b[i]).length === 1;
+
+    it.each([
+      ['"1." numbering with odd spacing', 'Intro\n\n1.   [ ] a\n1.   [ ] b\n', 1, 'Intro\n\n1.   [ ] a\n1.   [x] b\n'],
+      ['4-space indents and -   [ ] spacing', '-   [ ] a\n    -   [X] nested\n', 1, '-   [ ] a\n    -   [ ] nested\n'],
+      ['a sibling the serializer would escape', '- [ ] 3 * 4 = _12_\n- [ ] b\n', 1, '- [ ] 3 * 4 = _12_\n- [x] b\n'],
+      ['a task list inside a quote', '> * [x] done\n>   more\n', 0, '> * [ ] done\n>   more\n'],
+    ])('changes exactly one character: %s', (_name, src, nth, expected) => {
+      const t = setup(src);
+      expect(click(t, nth)).toBe(true);
+      const out = t.sync();
+      expect(out).toBe(expected);
+      expect(oneCharDiff(src, out)).toBe(true);
+    });
+
+    it('toggling back and forth leaves the file as it was', () => {
+      const src = '1. [ ]  a\n1. [ ]  b\n';
+      const t = setup(src);
+      click(t, 0);
+      t.sync();
+      click(t, 0);
+      expect(t.sync()).toBe(src);
+    });
+
+    it('falls back to the editor toggle when the item can\'t be found in the source', () => {
+      const t = setup('- [ ] a\n');
+      const id = t.state.doc.child(0).attrs.blockId as string;
+      expect(t.model.toggleTask(id, [5])).toBeNull();
+      expect(t.model.toggleTask('nope', [0])).toBeNull();
+      expect(t.sent).toEqual([]);
+    });
   });
 
   it('holds further changes until the host acks, then sends them as one edit', () => {

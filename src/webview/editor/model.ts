@@ -1,7 +1,7 @@
 import type { Node as PmNode } from 'prosemirror-model';
 import { diffToEdit } from '../../md/edits';
 import { createIdGenerator } from '../../md/ids';
-import { commit, insertBlock, moveBlock, removeBlock, updateBlock } from '../../md/ops';
+import { commit, insertBlock, moveBlock, removeBlock, toggleTask, updateBlock } from '../../md/ops';
 import { parseMarkdown } from '../../md/parse';
 import type { MdDocument, TextEdit } from '../../md/types';
 import { writeMarkdown } from '../../md/write';
@@ -100,6 +100,26 @@ export class DocModel {
   /** Leaving Markdown mode: the editor document for the edited text, or null when it didn't change. */
   leaveSource(): PmNode | null {
     return this.sourceAhead ? this.rebuild() : null;
+  }
+
+  /**
+   * A checkbox click on the task item at `path` in block `blockId`: changes exactly one character
+   * of the text and returns the block's new editor node, which the editor must put in place of
+   * the old one (change() then sees the block as untouched). Returns null when that isn't
+   * possible (e.g. the item isn't in the source); the editor then toggles its own node and the
+   * change goes through change() as usual. Call change() first so the model is current.
+   */
+  toggleTask(blockId: string, path: number[]): PmNode | null {
+    if (this.sourceAhead) return null;
+    const doc = toggleTask(this.doc, blockId, path);
+    const block = doc?.blocks.find((b) => b.id === blockId);
+    if (!doc || !block) return null;
+    const node = blockToPm(block);
+    this.doc = doc;
+    this.seen.set(blockId, node);
+    this.text = writeMarkdown(doc);
+    this.flush();
+    return node;
   }
 
   /**

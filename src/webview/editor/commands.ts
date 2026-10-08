@@ -255,6 +255,36 @@ export function selectTopBlockStart(ctx: Ctx, index: number): void {
   ctx.dispatch(ctx.state.tr.setSelection(TextSelection.near(ctx.state.doc.resolve(pos + 1))));
 }
 
+/**
+ * The task item at `pos` as the Markdown model addresses it: the id of its top-level block and
+ * the child indices from that block down to the item (the same path in the mdast).
+ */
+export function taskTarget(state: EditorState, pos: number): { blockId: string; path: number[] } | null {
+  const item = state.doc.nodeAt(pos);
+  if (!item || item.type !== n.list_item || item.attrs.checked === null) return null;
+  const $pos = state.doc.resolve(pos);
+  if ($pos.depth < 1) return null;
+  const blockId = $pos.node(1).attrs.blockId as string | null;
+  if (!blockId) return null;
+  const path: number[] = [];
+  for (let d = 1; d <= $pos.depth; d++) path.push($pos.index(d));
+  return { blockId, path };
+}
+
+/**
+ * A checkbox click: lets the Markdown model flip the one character in the source and swaps in
+ * the block node it returns; falls back to toggleTask() when the model can't.
+ */
+export function clickTask(ctx: Ctx, pos: number, model: { toggleTask(blockId: string, path: number[]): PmNode | null }): boolean {
+  const target = taskTarget(ctx.state, pos);
+  const block = target ? model.toggleTask(target.blockId, target.path) : null;
+  if (!block) return toggleTask(ctx, pos);
+  const start = ctx.state.doc.resolve(pos).before(1);
+  const tr = ctx.state.tr.replaceWith(start, start + ctx.state.doc.nodeAt(start)!.nodeSize, block);
+  ctx.dispatch(tr);
+  return true;
+}
+
 /** Flips the checkbox of the list item at `pos` (works in Preview, where the view is read-only). */
 export function toggleTask(ctx: Ctx, pos: number): boolean {
   const item = ctx.state.doc.nodeAt(pos);

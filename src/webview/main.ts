@@ -9,7 +9,7 @@ import { EditorState, Selection, type Transaction } from 'prosemirror-state';
 import { tableEditing } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
 import type { HostToWebview, Mode, WebviewToHost } from '../bridge/messages';
-import { activeState, insertBlock, setBlock, toggleInline, toggleTask, type BlockType, type InsertKind, type MarkName } from './editor/commands';
+import { activeState, clickTask, insertBlock, setBlock, toggleInline, type BlockType, type InsertKind, type MarkName } from './editor/commands';
 import { uniqueIds } from './editor/ids';
 import { editorKeymaps } from './editor/keymap';
 import { DocModel } from './editor/model';
@@ -371,7 +371,9 @@ class App implements AppApi {
       const li = cb.closest('li');
       if (li) {
         const pos = view.posAtDOM(li, 0) - 1;
-        toggleTask(view, pos);
+        // The model flips the one character in the source (no list rewrite); it must be current first.
+        this.flushNow();
+        clickTask(view, pos, this.model);
         return true;
       }
     }

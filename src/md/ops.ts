@@ -1,6 +1,6 @@
 import type { RootContent } from 'mdast';
 import { nodeKey } from './key';
-import { kindOf } from './parse';
+import { kindOf, parseTree } from './parse';
 import { serializeBlock } from './serialize';
 import type { MdDocument, SourceBlock } from './types';
 import { markerOf, renderBlocks } from './write';
@@ -90,6 +90,44 @@ export function moveBlock(doc: MdDocument, id: string, toIndex: number): MdDocum
   const without = removeBlock(doc, id);
   const to = clamp(without, toIndex);
   return guardListMerge(place(without, doc.blocks[i]!, to), to, to + 1);
+}
+
+type MdNode = { type: string; children?: MdNode[]; checked?: boolean | null; position?: { start: { offset?: number }; end: { offset?: number } } };
+
+/** The node at `path` (child indices) below `node`, if it is a list item. */
+function itemAt(node: MdNode | undefined, path: number[]): MdNode | null {
+  let cur = node;
+  for (const i of path) cur = cur?.children?.[i];
+  return cur?.type === 'listItem' ? cur : null;
+}
+
+/**
+ * Ticks or unticks the task item at `path` inside block `id` by changing the one character
+ * between its brackets in the block's source, so a checkbox click never rewrites the rest of
+ * the list (numbering, indents, marker spacing, escaping). Returns null when that can't be
+ * done (no source, the block was edited, no such task item); the caller then updates the
+ * block's data the ordinary way.
+ */
+export function toggleTask(doc: MdDocument, id: string, path: number[]): MdDocument | null {
+  const index = doc.blocks.findIndex((b) => b.id === id);
+  const block = doc.blocks[index];
+  if (!block || block.dirty || block.original === null) return null;
+  const data = structuredClone(block.data) as MdNode;
+  const item = itemAt(data, path);
+  if (!item || typeof item.checked !== 'boolean') return null;
+  // Positions come from parsing the block's own source; the list structure doesn't depend on context.
+  const parsed = itemAt(parseTree(block.original).children[0] as MdNode | undefined, path);
+  const start = parsed?.position?.start.offset;
+  const end = parsed?.children?.[0]?.position?.start.offset ?? parsed?.position?.end.offset;
+  if (!parsed || parsed.checked !== item.checked || start === undefined || end === undefined) return null;
+  const box = /\[([ xX])\]/.exec(block.original.slice(start, end));
+  if (!box) return null;
+  const at = start + box.index + 1;
+  const original = block.original.slice(0, at) + (item.checked ? ' ' : 'x') + block.original.slice(at + 1);
+  item.checked = !item.checked;
+  const blocks = doc.blocks.slice();
+  blocks[index] = { ...block, original, data: data as RootContent, originalKey: nodeKey(data) };
+  return { ...doc, blocks };
 }
 
 /** Makes the written text the new baseline: originals, keys and gaps become exactly what writeMarkdown emits. */

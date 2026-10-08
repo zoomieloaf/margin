@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { List, Paragraph, RootContent } from 'mdast';
-import { commit, insertBlock, moveBlock, removeBlock, updateBlock } from '../../src/md/ops';
+import { commit, insertBlock, moveBlock, removeBlock, toggleTask as toggleTaskOp, updateBlock } from '../../src/md/ops';
+import { nodeKey } from '../../src/md/key';
 import { parseMarkdown } from '../../src/md/parse';
 import { writeMarkdown } from '../../src/md/write';
 import { expectReparseStable } from './helpers';
@@ -290,5 +291,24 @@ describe('clean lists that become neighbours', () => {
     const src = '- a\n\nB\n\n* c\n';
     const doc = parseMarkdown(src);
     expect(writeMarkdown(removeBlock(doc, doc.blocks[1]!.id))).toBe('- a\n\n* c\n');
+  });
+});
+
+describe('toggleTask (one character in the source)', () => {
+  it('flips the box of the item at a path and nothing else', () => {
+    const doc = parseMarkdown('Intro\n\n1.  [ ] a\n1.  [ ] b\n    - [X] c\n');
+    const list = doc.blocks[1]!;
+    const out = toggleTaskOp(doc, list.id, [1, 1, 0]);
+    expect(out && writeMarkdown(out)).toBe('Intro\n\n1.  [ ] a\n1.  [ ] b\n    - [ ] c\n');
+    expect(out!.blocks[1]!.dirty).toBe(false);
+    expect(out!.blocks[1]!.originalKey).toBe(nodeKey(parseMarkdown(writeMarkdown(out!)).blocks[1]!.data));
+  });
+
+  it('returns null for a dirty block, a non-task item or a bad path', () => {
+    const doc = parseMarkdown('- [ ] a\n- b\n');
+    const id = doc.blocks[0]!.id;
+    expect(toggleTaskOp(doc, id, [1])).toBeNull();
+    expect(toggleTaskOp(doc, id, [7])).toBeNull();
+    expect(toggleTaskOp({ ...doc, blocks: [{ ...doc.blocks[0]!, dirty: true }] }, id, [0])).toBeNull();
   });
 });
