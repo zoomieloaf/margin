@@ -1,0 +1,70 @@
+import type { RootContent } from 'mdast';
+import { nodeKey } from './key';
+import { kindOf } from './parse';
+import type { MdDocument, SourceBlock } from './types';
+import { blockText } from './write';
+
+const separator = (doc: MdDocument) => doc.conventions.eol + doc.conventions.eol;
+
+export function updateBlock(doc: MdDocument, id: string, data: RootContent): MdDocument {
+  return {
+    ...doc,
+    blocks: doc.blocks.map((b) =>
+      b.id !== id ? b : { ...b, data, kind: kindOf(data), dirty: b.originalKey === null || nodeKey(data) !== b.originalKey },
+    ),
+  };
+}
+
+function place(doc: MdDocument, block: SourceBlock, index: number): MdDocument {
+  const blocks = doc.blocks.slice();
+  let trailing = doc.trailing;
+  let placed: SourceBlock;
+  if (blocks.length === 0) {
+    placed = { ...block, gapBefore: '' };
+    if (trailing === '') trailing = doc.conventions.eol;
+  } else if (index === 0) {
+    const first = blocks[0]!;
+    placed = { ...block, gapBefore: first.gapBefore };
+    blocks[0] = { ...first, gapBefore: separator(doc) };
+  } else {
+    placed = { ...block, gapBefore: separator(doc) };
+  }
+  blocks.splice(index, 0, placed);
+  return { ...doc, blocks, trailing };
+}
+
+const clamp = (i: number, max: number) => Math.max(0, Math.min(i, max));
+
+export function insertBlock(doc: MdDocument, index: number, data: RootContent, id: string): MdDocument {
+  const block: SourceBlock = {
+    id, kind: kindOf(data), original: null, originalKey: null, gapBefore: '', data, dirty: true,
+  };
+  return place(doc, block, clamp(index, doc.blocks.length));
+}
+
+export function removeBlock(doc: MdDocument, id: string): MdDocument {
+  const i = doc.blocks.findIndex((b) => b.id === id);
+  if (i < 0) return doc;
+  const blocks = doc.blocks.slice();
+  const [gone] = blocks.splice(i, 1);
+  if (i === 0 && blocks.length) blocks[0] = { ...blocks[0]!, gapBefore: gone!.gapBefore };
+  return { ...doc, blocks };
+}
+
+export function moveBlock(doc: MdDocument, id: string, toIndex: number): MdDocument {
+  const block = doc.blocks.find((b) => b.id === id);
+  if (!block) return doc;
+  const without = removeBlock(doc, id);
+  return place(without, block, clamp(toIndex, without.blocks.length));
+}
+
+export function commit(doc: MdDocument): MdDocument {
+  return {
+    ...doc,
+    blocks: doc.blocks.map((b) =>
+      b.dirty || b.original === null
+        ? { ...b, original: blockText(b, doc.conventions), originalKey: nodeKey(b.data), dirty: false }
+        : b,
+    ),
+  };
+}
