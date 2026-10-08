@@ -128,7 +128,7 @@ const nodes: Record<string, NodeSpec> = {
   block_raw: {
     group: 'block',
     atom: true,
-    attrs: { mdast: { default: null }, text: { default: '' } },
+    attrs: { mdast: { default: null }, text: { default: '' }, ...blockId },
     toDOM: (node) => ['pre', { class: 'raw', contenteditable: 'false' }, node.attrs.text as string],
   },
 

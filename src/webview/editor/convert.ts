@@ -125,9 +125,9 @@ export function pmToMdast(node: PmNode): RootContent {
     case 'block_raw':
       return node.attrs.mdast as RootContent;
     case 'paragraph':
-      return { type: 'paragraph', children: inlineFromPm(node) };
+      return { type: 'paragraph', children: trimEdges(inlineFromPm(node)) };
     case 'heading':
-      return { type: 'heading', depth: node.attrs.level as 1, children: inlineFromPm(node) };
+      return { type: 'heading', depth: node.attrs.level as 1, children: trimEdges(inlineFromPm(node)) };
     case 'blockquote':
       return { type: 'blockquote', children: flowFromPm(node) };
     case 'callout': {
@@ -184,7 +184,7 @@ function tableFromPm(node: PmNode): Table {
   const children: Table['children'] = [];
   node.forEach((row) => {
     const cells: TableCell[] = [];
-    row.forEach((cell) => cells.push({ type: 'tableCell', children: inlineFromPm(cell) }));
+    row.forEach((cell) => cells.push({ type: 'tableCell', children: trimEdges(inlineFromPm(cell)) }));
     children.push({ type: 'tableRow', children: cells });
   });
   return { type: 'table', align, children };
@@ -217,6 +217,30 @@ function leafFor(node: PmNode): PhrasingContent {
     case 'inline_raw': return node.attrs.mdast as PhrasingContent;
     default: throw new Error(`Margin: unexpected inline node ${node.type.name}`);
   }
+}
+
+/**
+ * Markdown can't express spaces at the start or end of a paragraph (they'd be written as
+ * `&#x20;`), so text typed there — e.g. after splitting "Hello| world" — is trimmed on save.
+ */
+function trimEdges(children: PhrasingContent[]): PhrasingContent[] {
+  const edge = (list: PhrasingContent[], first: boolean): void => {
+    const node = first ? list[0] : list[list.length - 1];
+    if (!node) return;
+    if (node.type === 'text') {
+      node.value = first ? node.value.replace(/^[ \t]+/, '') : node.value.replace(/[ \t]+$/, '');
+      if (!node.value) {
+        if (first) list.shift();
+        else list.pop();
+        edge(list, first);
+      }
+    } else if (node.type === 'strong' || node.type === 'emphasis' || node.type === 'delete' || node.type === 'mark') {
+      edge(node.children as PhrasingContent[], first);
+    }
+  };
+  edge(children, true);
+  edge(children, false);
+  return children;
 }
 
 /** Default tie-break when two marks cover exactly the same run. */
