@@ -6,7 +6,7 @@ import { writeMarkdown } from '../../src/md/write';
 import type { MdDocument } from '../../src/md/types';
 
 const join = (d: MdDocument) =>
-  (d.bom ? '﻿' : '') + d.blocks.map((b) => b.gapBefore + b.original).join('') + d.trailing;
+  (d.bom ? '\uFEFF' : '') + d.blocks.map((b) => b.gapBefore + b.original).join('') + d.trailing;
 
 describe('parseMarkdown', () => {
   it('splits top-level blocks and assigns kinds', () => {
@@ -34,7 +34,7 @@ describe('parseMarkdown', () => {
   });
 
   it('strips a BOM into doc.bom (BOM)', () => {
-    const src = '﻿# T\n';
+    const src = '\uFEFF# T\n';
     const doc = parseMarkdown(src);
     expect(doc.bom).toBe(true);
     expect(doc.blocks[0]!.original).toBe('# T');

@@ -2,7 +2,7 @@ import type { List } from 'mdast';
 import { serializeBlock } from './serialize';
 import type { Conventions, MdDocument, SourceBlock } from './types';
 
-const BOM = '﻿';
+const BOM = '\uFEFF';
 const LIST_MARKER = /^[ \t]*(?:([-*+])|\d{1,9}([.)]))/;
 const BULLETS: ReadonlyArray<Conventions['bullet']> = ['-', '*', '+'];
 const DELIMITERS: ReadonlyArray<Conventions['bulletOrdered']> = ['.', ')'];
