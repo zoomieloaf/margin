@@ -47,6 +47,8 @@ class App implements AppApi {
   private readonly outline: Outline;
   private baseUri = '';
   private timer: number | undefined;
+  /** Debounce of the Markdown-mode textarea; undefined when nothing is waiting. */
+  private sourceTimer: number | undefined;
   private lastWords = -1;
 
   constructor(host: HTMLElement) {
@@ -68,7 +70,16 @@ class App implements AppApi {
     this.source.spellcheck = false;
     this.source.setAttribute('aria-label', 'Markdown source');
     this.source.hidden = true;
-    this.source.addEventListener('input', () => this.autoGrow());
+    this.source.addEventListener('input', () => {
+      this.autoGrow();
+      this.scheduleSource();
+    });
+    this.source.addEventListener('beforeinput', (e) => {
+      if (e.inputType === 'historyUndo' || e.inputType === 'historyRedo') {
+        e.preventDefault();
+        this.history(e.inputType === 'historyUndo' ? 'undo' : 'redo');
+      }
+    });
     wrap.append(mount, this.source);
     this.scroll.append(wrap);
     this.outline = new Outline(() => this.view, this.scroll);
@@ -162,10 +173,26 @@ class App implements AppApi {
     this.timer = window.setTimeout(() => this.model.change(this.view.state.doc), EDIT_DEBOUNCE_MS);
   }
 
-  /** Sends anything still waiting for the debounce (before switching to Markdown mode). */
+  /** Markdown mode: textarea changes reach the file after the same short pause as editor changes. */
+  private scheduleSource(): void {
+    window.clearTimeout(this.sourceTimer);
+    this.sourceTimer = window.setTimeout(() => {
+      this.sourceTimer = undefined;
+      this.model.sourceChanged(this.source.value);
+    }, EDIT_DEBOUNCE_MS);
+  }
+
+  /** Sends anything still waiting for the debounce (mode switch, undo, export, hiding the page...). */
   private flushNow(): void {
     window.clearTimeout(this.timer);
-    this.model.change(this.view.state.doc);
+    this.timer = undefined;
+    if (this.mode === 'source') {
+      window.clearTimeout(this.sourceTimer);
+      this.sourceTimer = undefined;
+      this.model.sourceChanged(this.source.value);
+    } else {
+      this.model.change(this.view.state.doc);
+    }
   }
 
   /**
@@ -179,9 +206,16 @@ class App implements AppApi {
 
   private load(doc: PmNode, keepSelection: boolean): void {
     window.clearTimeout(this.timer);
+    window.clearTimeout(this.sourceTimer);
+    this.timer = this.sourceTimer = undefined;
     const sel = keepSelection ? this.view.state.selection.from : undefined;
     this.view.updateState(this.createState(doc, sel));
-    if (this.mode === 'source') this.source.value = this.model.markdown;
+    if (this.mode === 'source' && this.source.value !== this.model.markdown) {
+      const { selectionStart, selectionEnd } = this.source;
+      this.source.value = this.model.markdown;
+      this.source.setSelectionRange(selectionStart, selectionEnd);
+      this.autoGrow();
+    }
     this.refreshUi(true);
   }
 
@@ -196,9 +230,14 @@ class App implements AppApi {
       case 'ack':
         this.model.ack(m.version, m.seq);
         break;
-      case 'reset':
+      case 'reset': {
+        // Markdown mode: the file's text wins over textarea edits not yet sent (the safer
+        // choice: re-applying them could silently undo the change that caused the reset).
+        const unsent = this.mode === 'source' && (this.sourceTimer !== undefined || this.model.busy);
         this.load(this.model.reset(m.text, m.version), true);
+        if (unsent) toast('The file changed while you were typing', 'Margin is showing the file as it is now; check your last edit');
         break;
+      }
       case 'setMode':
         this.setMode(m.mode);
         break;
@@ -213,8 +252,10 @@ class App implements AppApi {
   setMode(mode: Mode): void {
     if (mode === this.mode && this.root.dataset.mode) return;
     const leaving = this.mode;
-    if (leaving === 'source' && mode !== 'source' && this.source.value !== this.model.markdown) {
-      this.load(this.model.replaceText(this.source.value), true);
+    if (leaving === 'source' && mode !== 'source') {
+      this.flushNow(); // still in source mode here: sends the textarea
+      const doc = this.model.leaveSource();
+      if (doc) this.load(doc, true);
     }
     if (mode === 'source') {
       this.flushNow();

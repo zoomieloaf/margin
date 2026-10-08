@@ -223,6 +223,65 @@ await test('Markdown mode edits apply when switching back', async () => {
   await page.close();
 });
 
+async function typeAtEndOfSource(page, text) {
+  await page.click('[data-mode="source"]');
+  await page.focus('textarea.source');
+  await page.$eval('textarea.source', (t) => t.setSelectionRange(t.value.length, t.value.length));
+  await page.keyboard.type(text);
+}
+
+await test('Markdown mode: typing reaches the file after the debounce, without leaving the mode', async () => {
+  const page = await open('# A\n\nB\n');
+  await typeAtEndOfSource(page, 'More');
+  await sleep(300);
+  assert.equal(await page.evaluate(() => window.host.text), '# A\n\nB\nMore');
+  assert.equal(await page.$eval('.app', (e) => e.dataset.mode), 'source');
+  const edits = await page.evaluate(() => window.host.posted.filter((m) => m.type === 'edit').map((m) => m.edits));
+  assert.deepEqual(edits.at(-1), [{ start: 7, end: 7, text: 'More' }]);
+  await page.close();
+});
+
+await test('Markdown mode: Ctrl+Z sends the pending edit, then one undo to VS Code', async () => {
+  const page = await open('# A\n\nB\n');
+  await typeAtEndOfSource(page, 'x');
+  await page.keyboard.down(mod);
+  await page.keyboard.press('z');
+  await page.keyboard.up(mod);
+  await sleep(300);
+  const posted = await page.evaluate(() => window.host.posted.map((m) => m.type).filter((t) => t === 'edit' || t === 'undo'));
+  assert.deepEqual(posted, ['edit', 'undo']);
+  assert.equal(await page.evaluate(() => window.host.text), '# A\n\nB\nx');
+  await page.close();
+});
+
+await test('Markdown mode: a reset replaces the textarea when nothing is unsent', async () => {
+  const page = await open('# A\n\nB\n');
+  await page.click('[data-mode="source"]');
+  await page.evaluate(() => {
+    window.host.text = '# A\n\nFrom git\n';
+    window.host.version = 9;
+    window.postMessage({ type: 'reset', text: window.host.text, version: 9 }, '*');
+  });
+  await sleep(50);
+  assert.equal(await page.$eval('textarea.source', (t) => t.value), '# A\n\nFrom git\n');
+  await page.close();
+});
+
+await test('Markdown mode: a reset over unsent typing shows the file and says so', async () => {
+  const page = await open('# A\n\nB\n');
+  await typeAtEndOfSource(page, 'typed');
+  await page.evaluate(() => {
+    window.host.text = '# A\n\nFrom git\n';
+    window.host.version = 9;
+    window.postMessage({ type: 'reset', text: window.host.text, version: 9 }, '*');
+  });
+  await sleep(300);
+  assert.equal(await page.$eval('textarea.source', (t) => t.value), '# A\n\nFrom git\n');
+  assert.equal(await page.evaluate(() => window.host.text), '# A\n\nFrom git\n');
+  assert.match(await page.$eval('#toast', (e) => (e.hidden ? '' : e.textContent)), /changed while you were typing/);
+  await page.close();
+});
+
 await test('untouched file round-trips with no edit at all', async () => {
   const src = '---\ntitle: x\n---\n\n<div align="center">\n  <img src="logo.png">\n</div>\n\n| a | b |\n|:-|-:|\n| 1 | 2 |\n\n> [!note]\n> Lower-case callout.\n';
   const page = await open(src);

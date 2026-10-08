@@ -16,7 +16,7 @@ const TEMPLATE = `
   <button type="button" data-mode="source" data-tip="Markdown source">${icon('hash')}<span>Markdown</span></button>
 </div>
 <div class="tb-hint hint-preview"><b>Double-click</b> any text to start editing</div>
-<div class="tb-hint hint-source">Raw Markdown. Changes apply when you switch back.</div>
+<div class="tb-hint hint-source">Raw Markdown. Your edits go to the file as you type.</div>
 <div class="fmt">
   <span class="vsep"></span>
   ${btn('undo', 'undo', 'Undo', 'Ctrl+Z')}

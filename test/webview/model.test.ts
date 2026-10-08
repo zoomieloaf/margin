@@ -169,6 +169,67 @@ describe('DocModel', () => {
     expect(doc.childCount).toBe(2);
   });
 
+  describe('Markdown mode (sourceChanged)', () => {
+    it('sends each textarea change as a minimal edit, without waiting to leave the mode', () => {
+      const sent: OutgoingEdit[] = [];
+      const model = new DocModel((e) => sent.push(e));
+      model.load('# A\n\nB\n', 3);
+      model.sourceChanged('# A\n\nB!\n');
+      expect(sent).toEqual([{ version: 3, edits: [{ start: 6, end: 6, text: '!' }] }]);
+      expect(model.markdown).toBe('# A\n\nB!\n');
+    });
+
+    it('holds textarea changes while an edit is in flight and sends them as one edit after the ack', () => {
+      const sent: OutgoingEdit[] = [];
+      const model = new DocModel((e) => sent.push(e));
+      model.load('ab\n', 1);
+      model.sourceChanged('abc\n');
+      model.sourceChanged('abcd\n');
+      model.sourceChanged('abcde\n');
+      expect(sent).toHaveLength(1);
+      expect(model.busy).toBe(true);
+      model.ack(2);
+      expect(sent[1]).toEqual({ version: 2, edits: [{ start: 3, end: 3, text: 'de' }] });
+    });
+
+    it('rebuilds the editor document only when the mode is left', () => {
+      const model = new DocModel(() => {});
+      model.load('# A\n\nB\n', 3);
+      expect(model.leaveSource()).toBeNull();
+      model.sourceChanged('# A\n\nB\n\n- item\n');
+      const doc = model.leaveSource()!;
+      expect(doc.childCount).toBe(3);
+      expect(doc.child(2).type.name).toBe('bullet_list');
+      expect(model.leaveSource()).toBeNull();
+    });
+
+    it('ignores the stale editor document while the textarea text is newer', () => {
+      const sent: OutgoingEdit[] = [];
+      const model = new DocModel((e) => sent.push(e));
+      const pm = model.load('A\n', 1);
+      model.sourceChanged('A changed\n');
+      model.ack(2);
+      model.change(pm); // e.g. a debounce that fired late: must not revert the textarea edit
+      expect(sent).toHaveLength(1);
+      expect(model.markdown).toBe('A changed\n');
+    });
+
+    it('the text shown on entering the mode includes an editor change still waiting for an ack', () => {
+      const sent: OutgoingEdit[] = [];
+      const model = new DocModel((e) => sent.push(e));
+      let state = EditorState.create({ doc: model.load('Hi\n', 1), plugins: [uniqueIds(model.newId)] });
+      state = state.apply(state.tr.insertText('!', 3));
+      model.change(state.doc); // in flight
+      state = state.apply(state.tr.insertText('?', 4));
+      model.change(state.doc); // held
+      expect(model.markdown).toBe('Hi!?\n');
+      model.sourceChanged('Hi!?\n\nMore\n');
+      model.ack(2);
+      expect(sent).toHaveLength(2);
+      expect(applyEdit('Hi!\n', sent[1]!.edits[0]!)).toBe('Hi!?\n\nMore\n');
+    });
+  });
+
   it('round-trips a whole corpus file untouched (no edit)', () => {
     const src = '> [!TIP]\n> Try it.\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```ts\nx\n```\n';
     const t = setup(src);

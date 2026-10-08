@@ -14,22 +14,28 @@ export interface OutgoingEdit {
 }
 
 /**
- * Owns the Markdown side of the editor: the parsed document, the text the host last confirmed,
- * and the one edit allowed in flight. The editor reports its document with `change()`; the
- * model works out which blocks changed and sends one minimal text edit.
+ * Owns the Markdown side of the editor: the parsed document, the text it stands for, and the
+ * one edit allowed in flight. The editor reports its document with `change()` (Markdown mode
+ * reports the textarea with `sourceChanged()`); the model works out the new text at once and
+ * sends one minimal text edit whenever no other edit is waiting for the host's ack.
  */
 export class DocModel {
   private doc!: MdDocument;
+  /** The Markdown the editor stands for: every local change applied. */
   private text = '';
+  /** What the host has, or will have once the edit in flight is applied. */
+  private sentText = '';
+  /** The host version the edit in flight (or the next edit) is based on. */
   private version = 0;
   /** Last ProseMirror node reconciled for each block id; an identical node means "untouched". */
   private seen = new Map<string, PmNode>();
-  private latest: PmNode | null = null;
   private inFlight = false;
   /** Sequence number of the last edit sent; the host echoes it in the ack. */
   private seq = 0;
   /** An ack didn't match the edit in flight: nothing is sent until the host's reset arrives. */
   private resyncing = false;
+  /** The text was edited in Markdown mode, so `doc` and the editor document are out of date. */
+  private sourceAhead = false;
   /** Callbacks waiting for the model to have nothing unsent or unacknowledged. */
   private idle: Array<() => void> = [];
   readonly newId = createIdGenerator('n');
@@ -42,35 +48,58 @@ export class DocModel {
 
   /** Parses `text` and returns the ProseMirror document to show. */
   load(text: string, version: number): PmNode {
-    this.doc = parseMarkdown(text);
     this.text = text;
+    this.sentText = text;
     this.version = version;
-    this.latest = null;
     this.inFlight = false;
     this.resyncing = false;
+    const pm = this.rebuild();
+    this.drainIdle();
+    return pm;
+  }
+
+  /** Re-parses `text` into blocks and the editor document, leaving the sync state alone. */
+  private rebuild(): PmNode {
+    this.doc = parseMarkdown(this.text);
+    this.sourceAhead = false;
     this.seen.clear();
     const nodes = this.doc.blocks.map((b) => {
       const node = blockToPm(b);
       this.seen.set(b.id, node);
       return node;
     });
-    const pm = schema.nodes.doc!.create(null, nodes.length ? nodes : [schema.nodes.paragraph!.create()]);
-    this.drainIdle();
-    return pm;
+    return schema.nodes.doc!.create(null, nodes.length ? nodes : [schema.nodes.paragraph!.create()]);
   }
 
+  /** The Markdown the editor currently stands for (sent or not). */
   get markdown(): string {
     return this.text;
   }
 
+  /** Something is unsent, unacknowledged, or waiting for a resync. */
   get busy(): boolean {
-    return this.inFlight || this.latest !== null || this.resyncing;
+    return this.inFlight || this.text !== this.sentText || this.resyncing;
   }
 
   /** Call with the editor's current document after it changed. */
   change(pmDoc: PmNode): void {
-    this.latest = pmDoc;
+    // While Markdown mode has newer text, the editor document is stale: don't let it win.
+    if (this.sourceAhead) return;
+    this.reconcile(pmDoc);
     this.flush();
+  }
+
+  /** Call with the Markdown-mode textarea's text after it changed. The editor document is rebuilt by leaveSource(). */
+  sourceChanged(text: string): void {
+    if (text === this.text) return;
+    this.text = text;
+    this.sourceAhead = true;
+    this.flush();
+  }
+
+  /** Leaving Markdown mode: the editor document for the edited text, or null when it didn't change. */
+  leaveSource(): PmNode | null {
+    return this.sourceAhead ? this.rebuild() : null;
   }
 
   /**
@@ -114,28 +143,23 @@ export class DocModel {
     return this.load(text, version);
   }
 
-  /** Replaces the text from Markdown mode: sends the full-text edit and reloads. */
+  /** Replaces the text from Markdown mode in one go: sends the diff and returns the rebuilt document. */
   replaceText(text: string): PmNode {
-    const edit = diffToEdit(this.text, text);
-    const pm = this.load(text, this.version);
-    if (edit) {
-      this.inFlight = true;
-      this.send({ version: this.version, edits: [edit] }, ++this.seq);
-    }
-    return pm;
+    this.sourceChanged(text);
+    return this.rebuild();
   }
 
   private flush(): void {
-    if (this.inFlight || this.resyncing || !this.latest) return;
-    const pmDoc = this.latest;
-    this.latest = null;
-    const edit = this.reconcile(pmDoc);
+    if (this.inFlight || this.resyncing) return;
+    const edit = diffToEdit(this.sentText, this.text);
     if (!edit) return;
+    this.sentText = this.text;
     this.inFlight = true;
     this.send({ version: this.version, edits: [edit] }, ++this.seq);
   }
 
-  private reconcile(pmDoc: PmNode): TextEdit | null {
+  /** Brings `doc` and `text` up to date with the editor document. */
+  private reconcile(pmDoc: PmNode): void {
     const nodes = new Map<string, PmNode>();
     const order: string[] = [];
     pmDoc.forEach((node) => {
@@ -157,10 +181,7 @@ export class DocModel {
     });
 
     this.seen = nodes;
-    const text = writeMarkdown(doc);
+    this.text = writeMarkdown(doc);
     this.doc = commit(doc);
-    const edit = diffToEdit(this.text, text);
-    this.text = text;
-    return edit;
   }
 }
