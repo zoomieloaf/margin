@@ -97,7 +97,8 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.commands.registerCommand('margin._test.answerWarnings', (answer?: string) => {
         provider.warn = (message, ...items) => {
           warnings.push({ message, items });
-          return Promise.resolve(answer);
+          // Like a click: only on a button the warning has.
+          return Promise.resolve(answer !== undefined && items.includes(answer) ? answer : undefined);
         };
       }),
       vscode.commands.registerCommand('margin._test.warnings', () => [...warnings]),
