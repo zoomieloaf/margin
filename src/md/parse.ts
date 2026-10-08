@@ -3,7 +3,7 @@ import { frontmatterFromMarkdown } from 'mdast-util-frontmatter';
 import { gfmFromMarkdown } from 'mdast-util-gfm';
 import { frontmatter } from 'micromark-extension-frontmatter';
 import { gfm } from 'micromark-extension-gfm';
-import type { Root, RootContent } from 'mdast';
+import type { Root, RootContent, Table } from 'mdast';
 import { detectConventions } from './conventions';
 import { liftCallouts } from './callout';
 import { liftHighlights } from './highlight';
@@ -21,6 +21,12 @@ export function parseTree(src: string): Root {
   return tree;
 }
 
+/** A table whose rows differ in cell count cannot be re-serialized faithfully (it would be padded), so it stays raw. */
+function isRectangular(table: Table): boolean {
+  const width = table.children[0]?.children.length ?? 0;
+  return table.children.every((row) => row.children.length === width);
+}
+
 export function kindOf(node: RootContent): BlockKind {
   switch (node.type) {
     case 'paragraph': return 'paragraph';
@@ -29,7 +35,7 @@ export function kindOf(node: RootContent): BlockKind {
     case 'blockquote': return 'quote';
     case 'callout': return 'callout';
     case 'code': return 'code';
-    case 'table': return 'table';
+    case 'table': return isRectangular(node) ? 'table' : 'raw';
     case 'thematicBreak': return 'divider';
     default: return 'raw';
   }

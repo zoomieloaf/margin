@@ -62,3 +62,13 @@ describe('parseMarkdown', () => {
     expect(doc.blocks[0]!.originalKey).not.toContain('position');
   });
 });
+
+describe('kindOf table rule', () => {
+  it('keeps a ragged table (row wider than the header) raw so it is written back verbatim', () => {
+    const doc = parseMarkdown('| a | b |\n|---|---|\n| `x|y` | 1 |\n');
+    expect(doc.blocks[0]!.kind).toBe('raw');
+  });
+  it('keeps a rectangular table editable', () => {
+    expect(parseMarkdown('| a | b |\n|---|---|\n| 1 | 2 |\n').blocks[0]!.kind).toBe('table');
+  });
+});
