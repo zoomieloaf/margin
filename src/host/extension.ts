@@ -10,6 +10,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const testing = process.env.MARGIN_TEST === '1';
   const provider = new MarginEditorProvider(context, testing);
   context.subscriptions.push(
+    provider.ai,
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, provider, {
       webviewOptions: { retainContextWhenHidden: true },
       supportsMultipleEditorsPerDocument: true,
@@ -71,6 +72,7 @@ export function activate(context: vscode.ExtensionContext): void {
   // ---------------------------------------------------------------- test hooks (integration tests only)
   if (testing) {
     const warnings: Array<{ message: string; items: string[] }> = [];
+    const aiCalls = { clipboard: [] as string[], opened: [] as string[], asked: [] as string[] };
     const sessionFor = (uri: vscode.Uri | string) => {
       const s = provider.sessionsFor(typeof uri === 'string' ? vscode.Uri.parse(uri) : uri)[0];
       if (!s) throw new Error(`No Margin editor is open for ${uri.toString()}`);
@@ -102,6 +104,22 @@ export function activate(context: vscode.ExtensionContext): void {
         };
       }),
       vscode.commands.registerCommand('margin._test.warnings', () => [...warnings]),
+      // From now on the AI actions see no model, record instead of using the clipboard and the browser,
+      // and answer the first-use notice with `consent`. `chatView`: the editor has a chat command, which fails.
+      vscode.commands.registerCommand('margin._test.stubAi', ({ consent, chatView = false }: { consent: boolean; chatView?: boolean }) => {
+        aiCalls.clipboard.length = aiCalls.opened.length = aiCalls.asked.length = 0;
+        provider.ai.env = {
+          models: () => Promise.resolve([]),
+          hasChatCommand: () => Promise.resolve(chatView),
+          openChat: () => Promise.reject(new Error('no chat view')),
+          openExternal: (url) => (aiCalls.opened.push(url), Promise.resolve(true)),
+          clipboard: (text) => (aiCalls.clipboard.push(text), Promise.resolve()),
+          confirm: (where) => (aiCalls.asked.push(where), Promise.resolve(consent)),
+        };
+      }),
+      vscode.commands.registerCommand('margin._test.aiCalls', () => structuredClone(aiCalls)),
+      // Forgets which places the user agreed to send text to.
+      vscode.commands.registerCommand('margin._test.resetAiConsent', () => context.globalState.update('margin.ai.consent', undefined)),
     );
   }
 

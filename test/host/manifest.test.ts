@@ -20,3 +20,21 @@ describe('marketplace listing', () => {
     expect(readme).toMatch(/adds a row below or a column on the right, and deletes rows or columns/);
   });
 });
+
+describe('the margin.ai setting', () => {
+  const props = (JSON.parse(readFileSync(new URL('package.json', root), 'utf8')) as {
+    contributes: { configuration: { properties: Record<string, { enum?: string[]; enumDescriptions?: string[]; default?: unknown }> } };
+  }).contributes.configuration.properties;
+
+  it('offers auto, editor, chatgpt, claude and off, each described, auto by default', () => {
+    const ai = props['margin.ai']!;
+    expect(ai.enum).toEqual(['auto', 'editor', 'chatgpt', 'claude', 'off']);
+    expect(ai.enumDescriptions).toHaveLength(5);
+    expect(ai.default).toBe('auto');
+  });
+
+  it('the README says when and where text is sent', () => {
+    expect(readme).toMatch(/only when you run an AI action/);
+    for (const where of ['GitHub Copilot', 'chatgpt.com', 'claude.ai']) expect(readme).toContain(where);
+  });
+});

@@ -160,6 +160,25 @@
           "default": "",
           "description": "Path to Chrome, Edge or Chromium used for PDF export. Empty means detect automatically."
         },
+        "margin.ai": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "editor",
+            "chatgpt",
+            "claude",
+            "off"
+          ],
+          "enumDescriptions": [
+            "The editor's AI model (GitHub Copilot in VS Code) when there is one; otherwise the prompt is copied and a chat opens (the editor's chat, or chatgpt.com).",
+            "Only the editor's AI model (GitHub Copilot in VS Code). Results appear as a suggestion you accept or discard.",
+            "Copy the prompt and open chatgpt.com. Paste the answer back with Ctrl+V.",
+            "Copy the prompt and open claude.ai. Paste the answer back with Ctrl+V.",
+            "Hide all AI actions."
+          ],
+          "default": "auto",
+          "markdownDescription": "Where AI actions (Improve writing, Translate, Continue writing...) send the selected text. Text is sent only when you run an AI action."
+        },
         "margin.outline.visible": {
           "type": "boolean",
           "default": true,

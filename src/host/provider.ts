@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { isWebviewMessage, type HostToWebview, type Mode, type WebviewToHost } from '../bridge/messages';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
-import { aiSetting } from './ai/route';
+import { AiService, AiSession } from './ai/service';
 import { checkLinks, followLink, type Pages } from './navigate';
 import { SerialQueue } from './queue';
 import { DocumentSync } from './sync';
@@ -46,9 +46,13 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
   /** Fires when the active Margin editor, its mode or its word count changes. */
   readonly onDidChangeActive = this.changed.event;
   private readonly pending = new Map<string, PendingOpen>();
+  /** Runs the AI actions of every Margin editor (dispose it with the extension). */
+  readonly ai: AiService;
 
   /** `record`: keep what each session posts (integration tests). */
-  constructor(private readonly context: vscode.ExtensionContext, private readonly record = false) {}
+  constructor(private readonly context: vscode.ExtensionContext, private readonly record = false) {
+    this.ai = new AiService(context.globalState);
+  }
 
   warn = (message: string, ...items: string[]): Thenable<string | undefined> => vscode.window.showWarningMessage(message, ...items);
 
@@ -93,6 +97,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
       receive: (m) => queue.push(() => handle(m)),
     };
     const sync = new DocumentSync(document, session.post);
+    const ai = new AiSession(this.ai, session.post);
     this.sessions.add(session);
     if (panel.active) this.setActive(session);
 
@@ -106,13 +111,15 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
             mode: session.mode,
             settings: {
               outlineVisible: vscode.workspace.getConfiguration('margin').get('outline.visible', true),
-              ai: aiSetting(vscode.workspace.getConfiguration('margin').get('ai')),
-              aiEditor: false,
+              ai: this.ai.setting,
+              aiEditor: this.ai.available,
             },
             baseUri: panel.webview.asWebviewUri(docDir).toString() + '/',
             ...(anchor ? { anchor } : {}),
           });
           anchor = undefined;
+          // Answered with aiAvailable (models may have appeared since the last check).
+          void this.ai.refresh();
           break;
         case 'edit':
           try {
@@ -133,6 +140,8 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
           if (this.activeSession === session) await vscode.commands.executeCommand(m.type);
           break;
         case 'mode':
+          // The webview discards its suggestion on a mode change; stop paying for the answer too.
+          ai.cancelAll();
           session.mode = m.mode;
           this.updateFocusContext();
           this.changed.fire(this.activeSession);
@@ -165,6 +174,12 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
         case 'copyMarkdown':
           void copyMarkdown(document).catch(report);
           break;
+        case 'ai':
+          void ai.start(m);
+          break;
+        case 'aiCancel':
+          ai.cancel(m.id);
+          break;
         case 'log':
           console.log(`[margin] ${m.text}`);
           break;
@@ -173,6 +188,11 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
 
     const subs: vscode.Disposable[] = [
       sync,
+      ai,
+      this.ai.onDidChangeAvailable((editor) => session.post({ type: 'aiAvailable', editor })),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('margin.ai')) session.post({ type: 'aiAvailable', editor: this.ai.available, setting: this.ai.setting });
+      }),
       panel.webview.onDidReceiveMessage((raw: unknown) => {
         if (isWebviewMessage(raw)) void session.receive(raw);
       }),
