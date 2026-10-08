@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isWebviewMessage, MAX_CHECKED_LINKS } from '../../src/bridge/messages';
+import { AI_ACTIONS, isWebviewMessage, MAX_AI_TEXT, MAX_CHECKED_LINKS } from '../../src/bridge/messages';
 
 describe('isWebviewMessage', () => {
   it.each([
@@ -51,5 +51,38 @@ describe('checkLinks', () => {
   it('rejects an unreasonably long batch', () => {
     expect(isWebviewMessage({ type: 'checkLinks', hrefs: Array.from({ length: MAX_CHECKED_LINKS }, (_, i) => `${i}.md`) })).toBe(true);
     expect(isWebviewMessage({ type: 'checkLinks', hrefs: Array.from({ length: MAX_CHECKED_LINKS + 1 }, (_, i) => `${i}.md`) })).toBe(false);
+  });
+});
+
+describe('AI messages', () => {
+  it.each([
+    { type: 'ai', id: 'a1', action: 'improve', markdown: 'Some *text*' },
+    { type: 'ai', id: 'a1', action: 'translate', lang: 'German', markdown: 'Hallo' },
+    { type: 'ai', id: 'a1', action: 'ask', instruction: 'Make it formal', markdown: '' },
+    { type: 'ai', id: 'a1', action: 'continue', markdown: '', context: '# Plan\n\nFirst' },
+    { type: 'aiCancel', id: 'a1' },
+  ])('accepts %j', (m) => {
+    expect(isWebviewMessage(m)).toBe(true);
+  });
+
+  it.each([
+    { type: 'ai', id: 'a1', action: 'rewrite', markdown: 'x' },
+    { type: 'ai', id: '', action: 'improve', markdown: 'x' },
+    { type: 'ai', id: 3, action: 'improve', markdown: 'x' },
+    { type: 'ai', id: 'a1', action: 'improve' },
+    { type: 'ai', id: 'a1', action: 'improve', markdown: 'x', context: 5 },
+    { type: 'ai', id: 'a1', action: 'translate', markdown: 'x' },
+    { type: 'ai', id: 'a1', action: 'translate', lang: ' ', markdown: 'x' },
+    { type: 'ai', id: 'a1', action: 'ask', markdown: 'x' },
+    { type: 'ai', id: 'a1', action: 'ask', instruction: '', markdown: 'x' },
+    { type: 'aiCancel' },
+    { type: 'aiCancel', id: 7 },
+  ])('rejects %j', (m) => {
+    expect(isWebviewMessage(m)).toBe(false);
+  });
+
+  it('every action is accepted, and an oversized selection is refused', () => {
+    for (const action of AI_ACTIONS) expect(isWebviewMessage({ type: 'ai', id: 'x', action, lang: 'English', instruction: 'Do it', markdown: 'x' })).toBe(true);
+    expect(isWebviewMessage({ type: 'ai', id: 'x', action: 'improve', markdown: 'x'.repeat(MAX_AI_TEXT + 1) })).toBe(false);
   });
 });

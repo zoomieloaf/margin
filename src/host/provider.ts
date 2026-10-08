@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { isWebviewMessage, type HostToWebview, type Mode, type WebviewToHost } from '../bridge/messages';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
+import { aiSetting } from './ai/route';
 import { checkLinks, followLink, type Pages } from './navigate';
 import { SerialQueue } from './queue';
 import { DocumentSync } from './sync';
@@ -103,7 +104,11 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
             text: document.getText(),
             version: document.version,
             mode: session.mode,
-            settings: { outlineVisible: vscode.workspace.getConfiguration('margin').get('outline.visible', true) },
+            settings: {
+              outlineVisible: vscode.workspace.getConfiguration('margin').get('outline.visible', true),
+              ai: aiSetting(vscode.workspace.getConfiguration('margin').get('ai')),
+              aiEditor: false,
+            },
             baseUri: panel.webview.asWebviewUri(docDir).toString() + '/',
             ...(anchor ? { anchor } : {}),
           });
