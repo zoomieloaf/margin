@@ -322,6 +322,25 @@ await test('a #anchor link in Preview scrolls to the heading instead of asking t
   await page.close();
 });
 
+/** Fires a real paste event carrying only text/plain at the caret. */
+const pastePlain = (page, text) => page.evaluate((text) => {
+  const dt = new DataTransfer();
+  dt.setData('text/plain', text);
+  document.querySelector('.ProseMirror').dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+}, text);
+
+await test('pasting Markdown text makes formatted blocks; plain prose stays plain', async () => {
+  const page = await open('Intro\n');
+  await clickChar(page, '.ProseMirror p', 0, 5);
+  await pastePlain(page, '## Pasted\n\n- **a**\n- b');
+  await page.keyboard.type('More');
+  assert.equal(await settle(page), 'Intro\n\n## Pasted\n\n- **a**\n- b\n\nMore\n');
+  assert.equal(await page.$eval('.ProseMirror h2', (e) => e.textContent), 'Pasted');
+  await pastePlain(page, ' and 2 * 3');
+  assert.equal(await settle(page), 'Intro\n\n## Pasted\n\n- **a**\n- b\n\nMore and 2 \\* 3\n');
+  await page.close();
+});
+
 await test('an external change resets the editor', async () => {
   const page = await open('Old text\n');
   await page.evaluate(() => {

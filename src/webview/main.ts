@@ -13,6 +13,7 @@ import { activeState, clickTask, insertBlock, setBlock, toggleInline, type Block
 import { findAnchor } from './editor/anchors';
 import { uniqueIds } from './editor/ids';
 import { editorKeymaps } from './editor/keymap';
+import { markdownTextParser } from './editor/paste';
 import { DocModel } from './editor/model';
 import { schema } from './editor/schema';
 import type { AppApi } from './ui/api';
@@ -93,6 +94,8 @@ class App implements AppApi {
       attributes: { class: 'doc', spellcheck: 'true' },
       dispatchTransaction: (tr) => this.dispatch(tr),
       nodeViews: { image: (node) => this.imageView(node) },
+      // Plain text that looks like Markdown is pasted as formatted blocks.
+      clipboardTextParser: markdownTextParser,
       handleKeyDown: (_view, e) => this.slash.handleKey(e) || (e.key === 'Escape' && this.bubble.dismiss()),
       handleClick: (view, _pos, e) => this.click(view, e),
       handleDoubleClick: () => {
