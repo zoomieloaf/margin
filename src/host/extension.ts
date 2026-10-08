@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { isWebviewMessage } from '../bridge/messages';
+import type { TextEdit } from '../md/types';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
 import { MarginEditorProvider, VIEW_TYPE, type Session } from './provider';
 
@@ -64,6 +66,27 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('margin.redo', () => undefined),
     vscode.commands.registerCommand('margin.webviewKey', () => undefined),
   );
+
+  // ---------------------------------------------------------------- test hooks (integration tests only)
+  if (process.env.MARGIN_TEST === '1') {
+    const sessionFor = (uri: vscode.Uri | string) => {
+      const s = provider.sessionsFor(typeof uri === 'string' ? vscode.Uri.parse(uri) : uri)[0];
+      if (!s) throw new Error(`No Margin editor is open for ${uri.toString()}`);
+      return s;
+    };
+    context.subscriptions.push(
+      // An edit as the webview would send it, at the document's current version, through the session's queue.
+      vscode.commands.registerCommand('margin._test.postEdit', (uri: vscode.Uri | string, edits: TextEdit[]) => {
+        const s = sessionFor(uri);
+        return s.receive({ type: 'edit', version: s.document.version, edits });
+      }),
+      // Any webview message, queued like a real one (used to check the queue's ordering).
+      vscode.commands.registerCommand('margin._test.postMessage', (uri: vscode.Uri | string, message: unknown) => {
+        if (!isWebviewMessage(message)) throw new Error('Not a webview message');
+        return sessionFor(uri).receive(message);
+      }),
+    );
+  }
 
   // ---------------------------------------------------------------- first run
   const maybeAsk = async (editor: vscode.TextEditor | undefined) => {

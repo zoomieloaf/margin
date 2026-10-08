@@ -36,7 +36,8 @@ try {
     extensionTestsPath: path.join(root, 'out', 'integration', 'suite.cjs'),
     vscodeExecutablePath: installed,
     launchArgs: [workspace, '--disable-extensions', '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust'],
-    extensionTestsEnv: { MARGIN_IT_WORKSPACE: workspace },
+    // MARGIN_TEST registers the margin._test.* commands (synthetic webview messages).
+    extensionTestsEnv: { MARGIN_IT_WORKSPACE: workspace, MARGIN_TEST: '1' },
   });
 } catch {
   console.error('Integration tests failed');

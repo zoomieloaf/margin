@@ -70,6 +70,63 @@ const tests: Array<[string, () => Promise<void>]> = [
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   }],
 
+  ['spec: open in Margin, edit, save, undo through VS Code (one step)', async () => {
+    const uri = file('sample.md');
+    const original = readFileSync(uri.fsPath, 'utf8');
+    await vscode.commands.executeCommand('vscode.openWith', uri, 'margin.editor');
+    await until(() => activeTabInput() instanceof vscode.TabInputCustom, 'Margin tab');
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const end = doc.getText().length;
+    await vscode.commands.executeCommand('margin._test.postEdit', uri, [{ start: end, end, text: '\nFirst edit.\n' }]);
+    await vscode.commands.executeCommand('margin._test.postEdit', uri, [{ start: end, end, text: '\nSecond edit.\n' }]);
+    const both = `${original}\nSecond edit.\n\nFirst edit.\n`;
+    assert.equal(doc.getText(), both);
+    assert.ok(doc.isDirty, 'document should be dirty after the edits');
+
+    await vscode.commands.executeCommand('workbench.action.files.save');
+    await until(() => !doc.isDirty, 'save');
+    assert.equal(readFileSync(uri.fsPath, 'utf8'), both);
+
+    await vscode.commands.executeCommand('undo');
+    await until(() => doc.getText() !== both, 'undo');
+    await sleep(300); // and nothing more happens
+    assert.equal(doc.getText(), `${original}\nFirst edit.\n`, 'undo should revert exactly the last edit');
+
+    // Restore the fixture copy for the tests below.
+    const restore = new vscode.WorkspaceEdit();
+    restore.replace(uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), original);
+    await vscode.workspace.applyEdit(restore);
+    await doc.save();
+    assert.equal(readFileSync(uri.fsPath, 'utf8'), original);
+  }],
+
+  ['webview messages are handled in order: an edit queued before an undo or an export is applied first', async () => {
+    const uri = file('sample.md');
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const before = doc.getText();
+    const end = before.length;
+    // Not awaited one by one: both are queued at once, as two quick webview messages would be.
+    await Promise.all([
+      vscode.commands.executeCommand('margin._test.postEdit', uri, [{ start: end, end, text: '\nQueued.\n' }]),
+      vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'undo' }),
+    ]);
+    await sleep(300);
+    assert.equal(doc.getText(), before, 'the undo must undo the queued edit, nothing else');
+
+    // An export queued right behind an edit must see the edited text.
+    const html = path.join(workspace, 'docs', 'sample.html');
+    await Promise.all([
+      vscode.commands.executeCommand('margin._test.postEdit', uri, [{ start: end, end, text: '\nExported right after typing.\n' }]),
+      vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'exportHtml' }),
+    ]);
+    assert.match(readFileSync(html, 'utf8'), /Exported right after typing\./);
+    const restore = new vscode.WorkspaceEdit();
+    restore.replace(uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), before);
+    await vscode.workspace.applyEdit(restore);
+    await doc.save();
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  }],
+
   ['DocumentSync applies an edit and acks the new version', async () => {
     const doc = await vscode.workspace.openTextDocument(file('callouts.md'));
     const posted: HostToWebview[] = [];
