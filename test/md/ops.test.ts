@@ -46,7 +46,7 @@ describe('updateBlock', () => {
     const src = '# T\n';
     const doc = parseMarkdown(src);
     const b = doc.blocks[0]!;
-    const next = updateBlock(doc, b.id, { ...structuredClone(b.data), data: { editorId: 'x' } } as RootContent);
+    const next = updateBlock(doc, b.id, { ...structuredClone(b.data), data: { editorId: 'x' } } as unknown as RootContent);
     expect(next.blocks[0]!.dirty).toBe(false);
     expect(writeMarkdown(next)).toBe(src);
   });

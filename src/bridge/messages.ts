@@ -22,7 +22,7 @@ export type WebviewToHost =
 
 /** Messages the extension host sends to the webview. */
 export type HostToWebview =
-  | { type: 'init'; text: string; version: number; mode: Mode; settings: WebviewSettings }
+  | { type: 'init'; text: string; version: number; mode: Mode; settings: WebviewSettings; baseUri: string }
   | { type: 'ack'; version: number }
   | { type: 'reset'; text: string; version: number }
   | { type: 'setMode'; mode: Mode }

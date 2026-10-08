@@ -8,33 +8,73 @@
   "private": true,
   "type": "module",
   "icon": "media/icon.png",
-  "categories": ["Other", "Formatters"],
-  "keywords": ["markdown", "wysiwyg", "notion", "editor", "preview", "pdf"],
+  "categories": [
+    "Other",
+    "Formatters"
+  ],
+  "keywords": [
+    "markdown",
+    "wysiwyg",
+    "notion",
+    "editor",
+    "preview",
+    "pdf"
+  ],
   "engines": {
     "node": ">=20",
     "vscode": "^1.90.0"
   },
   "main": "./dist/extension.cjs",
-  "activationEvents": [],
+  "activationEvents": ["onLanguage:markdown"],
   "contributes": {
     "customEditors": [
       {
         "viewType": "margin.editor",
         "displayName": "Margin",
         "selector": [
-          { "filenamePattern": "*.md" },
-          { "filenamePattern": "*.markdown" }
+          {
+            "filenamePattern": "*.md"
+          },
+          {
+            "filenamePattern": "*.markdown"
+          }
         ],
         "priority": "option"
       }
     ],
     "commands": [
-      { "command": "margin.openInMargin", "title": "Open in Margin", "category": "Margin", "icon": "$(book)" },
-      { "command": "margin.reopenAsText", "title": "Reopen in Text Editor", "category": "Margin", "icon": "$(go-to-file)" },
-      { "command": "margin.toggleMode", "title": "Toggle Preview / Edit", "category": "Margin" },
-      { "command": "margin.exportPdf", "title": "Export to PDF", "category": "Margin" },
-      { "command": "margin.exportHtml", "title": "Export to HTML", "category": "Margin" },
-      { "command": "margin.copyMarkdown", "title": "Copy as Markdown", "category": "Margin" }
+      {
+        "command": "margin.openInMargin",
+        "title": "Open in Margin",
+        "category": "Margin",
+        "icon": "$(book)"
+      },
+      {
+        "command": "margin.reopenAsText",
+        "title": "Reopen in Text Editor",
+        "category": "Margin",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "margin.toggleMode",
+        "title": "Toggle Preview / Edit",
+        "category": "Margin"
+      },
+      {
+        "command": "margin.exportPdf",
+        "title": "Export to PDF",
+        "category": "Margin"
+      },
+      {
+        "command": "margin.exportHtml",
+        "title": "Export to HTML",
+        "category": "Margin"
+      },
+      {
+        "command": "margin.copyMarkdown",
+        "title": "Copy as Markdown",
+        "category": "Margin"
+      }
     ],
     "menus": {
       "editor/title": [
@@ -50,8 +90,14 @@
         }
       ],
       "commandPalette": [
-        { "command": "margin.reopenAsText", "when": "activeCustomEditorId == 'margin.editor'" },
-        { "command": "margin.toggleMode", "when": "activeCustomEditorId == 'margin.editor'" }
+        {
+          "command": "margin.reopenAsText",
+          "when": "activeCustomEditorId == 'margin.editor'"
+        },
+        {
+          "command": "margin.toggleMode",
+          "when": "activeCustomEditorId == 'margin.editor'"
+        }
       ]
     },
     "configuration": {
@@ -59,7 +105,10 @@
       "properties": {
         "margin.defaultMode": {
           "type": "string",
-          "enum": ["preview", "edit"],
+          "enum": [
+            "preview",
+            "edit"
+          ],
           "default": "preview",
           "description": "Mode used when a Markdown file opens in Margin."
         },
@@ -70,7 +119,11 @@
         },
         "margin.export.theme": {
           "type": "string",
-          "enum": ["light", "dark", "auto"],
+          "enum": [
+            "light",
+            "dark",
+            "auto"
+          ],
           "default": "light",
           "description": "Color theme of exported PDF and HTML files. 'auto' follows the current VS Code theme."
         },
@@ -127,6 +180,7 @@
     "prosemirror-view": "1.42.6"
   },
   "devDependencies": {
+    "@types/hast": "3.0.5",
     "@types/jsdom": "21.1.7",
     "@types/mdast": "4.0.4",
     "@types/node": "20.19.43",
