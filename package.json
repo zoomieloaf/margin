@@ -1,33 +1,142 @@
 {
   "name": "margin",
-  "displayName": "Margin",
-  "description": "Notion-style Markdown editing for VS Code and Cursor",
-  "version": "0.0.0",
+  "displayName": "Margin — Markdown Editor",
+  "description": "Notion-style Markdown editing for VS Code and Cursor: preview, edit in place, selection menu, slash commands, export to PDF. Your file stays plain Markdown.",
+  "version": "0.1.0",
+  "publisher": "margin",
+  "license": "MIT",
   "private": true,
   "type": "module",
+  "icon": "media/icon.png",
+  "categories": ["Other", "Formatters"],
+  "keywords": ["markdown", "wysiwyg", "notion", "editor", "preview", "pdf"],
   "engines": {
-    "node": ">=20"
+    "node": ">=20",
+    "vscode": "^1.90.0"
+  },
+  "main": "./dist/extension.cjs",
+  "activationEvents": [],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "margin.editor",
+        "displayName": "Margin",
+        "selector": [
+          { "filenamePattern": "*.md" },
+          { "filenamePattern": "*.markdown" }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      { "command": "margin.openInMargin", "title": "Open in Margin", "category": "Margin", "icon": "$(book)" },
+      { "command": "margin.reopenAsText", "title": "Reopen in Text Editor", "category": "Margin", "icon": "$(go-to-file)" },
+      { "command": "margin.toggleMode", "title": "Toggle Preview / Edit", "category": "Margin" },
+      { "command": "margin.exportPdf", "title": "Export to PDF", "category": "Margin" },
+      { "command": "margin.exportHtml", "title": "Export to HTML", "category": "Margin" },
+      { "command": "margin.copyMarkdown", "title": "Copy as Markdown", "category": "Margin" }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "margin.openInMargin",
+          "when": "resourceLangId == markdown && activeCustomEditorId != 'margin.editor'",
+          "group": "navigation"
+        },
+        {
+          "command": "margin.reopenAsText",
+          "when": "activeCustomEditorId == 'margin.editor'",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        { "command": "margin.reopenAsText", "when": "activeCustomEditorId == 'margin.editor'" },
+        { "command": "margin.toggleMode", "when": "activeCustomEditorId == 'margin.editor'" }
+      ]
+    },
+    "configuration": {
+      "title": "Margin",
+      "properties": {
+        "margin.defaultMode": {
+          "type": "string",
+          "enum": ["preview", "edit"],
+          "default": "preview",
+          "description": "Mode used when a Markdown file opens in Margin."
+        },
+        "margin.exportFolder": {
+          "type": "string",
+          "default": "",
+          "description": "Folder for exported PDF and HTML files, relative to the workspace. Empty means next to the Markdown file."
+        },
+        "margin.export.theme": {
+          "type": "string",
+          "enum": ["light", "dark", "auto"],
+          "default": "light",
+          "description": "Color theme of exported PDF and HTML files. 'auto' follows the current VS Code theme."
+        },
+        "margin.export.browserPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Chrome, Edge or Chromium used for PDF export. Empty means detect automatically."
+        },
+        "margin.outline.visible": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the outline panel when there is room."
+        }
+      }
+    }
   },
   "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:prod": "node scripts/build.mjs --production",
+    "watch": "node scripts/build.mjs --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "npm run build && node test/integration/run.mjs",
+    "e2e": "npm run build && node test/e2e/webview.e2e.mjs",
     "typecheck": "tsc --noEmit",
+    "icon": "node scripts/icon.mjs",
+    "package": "npm run build:prod && vsce package --no-dependencies",
+    "publish:vscode": "vsce publish --no-dependencies",
+    "publish:ovsx": "ovsx publish --no-dependencies",
     "fixtures:make": "node scripts/make-fixtures.mjs",
     "fixtures:fetch": "node scripts/fetch-corpus.mjs"
   },
   "dependencies": {
+    "hast-util-to-html": "9.0.5",
     "mdast-util-from-markdown": "2.1.0",
     "mdast-util-frontmatter": "2.0.1",
     "mdast-util-gfm": "3.1.0",
     "mdast-util-math": "3.0.0",
+    "mdast-util-to-hast": "13.2.1",
     "mdast-util-to-markdown": "2.2.0",
     "micromark-extension-frontmatter": "2.0.0",
     "micromark-extension-gfm": "3.0.0",
-    "micromark-extension-math": "3.1.0"
+    "micromark-extension-math": "3.1.0",
+    "prosemirror-commands": "1.7.2",
+    "prosemirror-dropcursor": "1.8.4",
+    "prosemirror-gapcursor": "1.4.1",
+    "prosemirror-inputrules": "1.5.1",
+    "prosemirror-keymap": "1.2.3",
+    "prosemirror-model": "1.25.12",
+    "prosemirror-schema-list": "1.5.1",
+    "prosemirror-state": "1.4.4",
+    "prosemirror-tables": "1.8.5",
+    "prosemirror-transform": "1.12.2",
+    "prosemirror-view": "1.42.6"
   },
   "devDependencies": {
+    "@types/jsdom": "21.1.7",
     "@types/mdast": "4.0.4",
     "@types/node": "20.19.43",
+    "@types/vscode": "1.90.0",
+    "@vscode/test-electron": "2.5.2",
+    "@vscode/vsce": "3.9.2",
+    "esbuild": "0.24.2",
+    "jsdom": "25.0.1",
+    "ovsx": "0.10.12",
+    "puppeteer-core": "23.11.1",
     "typescript": "5.9.3",
     "vitest": "2.1.9"
   }
