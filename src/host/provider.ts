@@ -84,7 +84,13 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
           });
           break;
         case 'edit':
-          await sync.applyEdit(m.version, m.edits, m.seq);
+          try {
+            await sync.applyEdit(m.version, m.edits, m.seq);
+          } catch (err) {
+            // No ack would come and the webview would hold every later edit: resend the file instead.
+            report(err);
+            sync.reset();
+          }
           break;
         case 'resync':
           sync.reset();
@@ -92,7 +98,8 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
         case 'undo':
         case 'redo':
           // The webview sends this once per key press, after its pending edits were acked.
-          await vscode.commands.executeCommand(m.type);
+          // If the user moved to another editor meanwhile, the command would undo there: skip it.
+          if (this.activeSession === session) await vscode.commands.executeCommand(m.type);
           break;
         case 'mode':
           session.mode = m.mode;
