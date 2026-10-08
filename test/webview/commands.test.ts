@@ -5,14 +5,15 @@ import { EditorView } from 'prosemirror-view';
 import { nodeKey } from '../../src/md/key';
 import { pmToMdast } from '../../src/webview/editor/convert';
 import {
-  activeState, currentLink, deleteTopBlock, duplicateTopBlock, insertBlock, moveTopBlock, setBlock, setLink, toggleInline, toggleTask,
-  type Ctx,
+  activeState, currentLink, deleteTopBlock, duplicateTopBlock, insertBlock, moveTopBlock, setBlock, setLink, tableAction, tableEnter,
+  tableTabAddRow, toggleInline, toggleTask, type Ctx,
 } from '../../src/webview/editor/commands';
 import { uniqueIds } from '../../src/webview/editor/ids';
 import { editorKeymaps } from '../../src/webview/editor/keymap';
 import { DocModel } from '../../src/webview/editor/model';
 import { serializeBlock } from '../../src/md/serialize';
 import { DEFAULT_CONVENTIONS } from '../../src/md/conventions';
+import { blockMenuGroups } from '../../src/webview/ui/catalog';
 
 function make(md: string) {
   const model = new DocModel(() => {});
@@ -179,4 +180,109 @@ it('a paragraph run through the commands still has a stable key', () => {
   toggleInline(t.ctx, 'strong');
   toggleInline(t.ctx, 'strong');
   expect(nodeKey(pmToMdast(t.state.doc.child(0)))).toBe(before);
+});
+
+describe('tables grow from the keyboard and the block menu', () => {
+  const TABLE = '| a | b |\n| - | - |\n| 1 | 2 |\n';
+  /** Position inside the text of the cell at (row, col). */
+  const cellPos = (state: EditorState, row: number, col: number) => {
+    let found = -1;
+    let r = -1;
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === 'table_row') {
+        r++;
+        let c = 0;
+        node.forEach((_cell, offset) => {
+          if (r === row && c === col) found = pos + 1 + offset + 1;
+          c++;
+        });
+        return false;
+      }
+      return true;
+    });
+    return found;
+  };
+  const cellAt = (state: EditorState) => {
+    const $from = state.selection.$from;
+    for (let d = $from.depth; d > 0; d--) {
+      if ($from.node(d).type.name === 'table_row') return { row: $from.index(d - 1), col: $from.index(d) };
+    }
+    return null;
+  };
+
+  it('Enter moves to the cell below', () => {
+    const t = make('| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |\n');
+    t.select(cellPos(t.state, 1, 1));
+    expect(tableEnter(t.state, t.ctx.dispatch)).toBe(true);
+    expect(cellAt(t.state)).toEqual({ row: 2, col: 1 });
+    expect(t.md()).toBe('| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |');
+  });
+
+  it('Enter in the last row adds a row and moves into it', () => {
+    const t = make(TABLE);
+    t.select(cellPos(t.state, 1, 1));
+    expect(tableEnter(t.state, t.ctx.dispatch)).toBe(true);
+    expect(cellAt(t.state)).toEqual({ row: 2, col: 1 });
+    expect(t.md()).toBe('| a | b |\n| - | - |\n| 1 | 2 |\n|   |   |');
+  });
+
+  it('Enter outside a table is not handled', () => {
+    const t = make('Text\n');
+    t.select(2);
+    expect(tableEnter(t.state, t.ctx.dispatch)).toBe(false);
+  });
+
+  it('Tab in the last cell adds a row and moves to its first cell', () => {
+    const t = make(TABLE);
+    t.select(cellPos(t.state, 1, 1));
+    expect(tableTabAddRow(t.state, t.ctx.dispatch)).toBe(true);
+    expect(cellAt(t.state)).toEqual({ row: 2, col: 0 });
+    expect(t.md()).toBe('| a | b |\n| - | - |\n| 1 | 2 |\n|   |   |');
+  });
+
+  it('Tab elsewhere in the table is left to the move-to-next-cell command', () => {
+    const t = make(TABLE);
+    t.select(cellPos(t.state, 1, 0));
+    expect(tableTabAddRow(t.state, t.ctx.dispatch)).toBe(false);
+  });
+
+  it('the editor keymap binds Enter and Tab in a table to these', () => {
+    const model = new DocModel(() => {});
+    const state = EditorState.create({ doc: model.load(TABLE, 1), plugins: [uniqueIds(model.newId), ...editorKeymaps({ undo() {}, redo() {}, toggleMode() {}, editLink() {} })] });
+    const view = new EditorView(document.createElement('div'), { state });
+    const press = (key: string) => view.someProp('handleKeyDown', (f) => f(view, new KeyboardEvent('keydown', { key })));
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, cellPos(view.state, 1, 1))));
+    press('Enter');
+    expect(cellAt(view.state)).toEqual({ row: 2, col: 1 });
+    press('Tab');
+    expect(cellAt(view.state)).toEqual({ row: 3, col: 0 });
+    expect(view.state.doc.child(0).childCount).toBe(4);
+    view.destroy();
+  });
+
+  it.each([
+    ['addRowAfter', '| a | b |\n| - | - |\n| 1 | 2 |\n|   |   |'],
+    ['addColumnAfter', '| a | b |   |\n| - | - | - |\n| 1 | 2 |   |'],
+    ['deleteRow', '| a | b |\n| - | - |'],
+    ['deleteColumn', '| a |\n| - |\n| 1 |'],
+  ] as const)('block menu: %s (selection outside the table → last row / column)', (action, out) => {
+    const t = make(`Intro\n\n${TABLE}`);
+    t.select(2);
+    expect(tableAction(t.ctx, 1, action)).toBe(true);
+    expect(t.md()).toBe(`Intro\n\n${out}`);
+  });
+
+  it('block menu actions apply at the cursor when it is in the table', () => {
+    const t = make('| a | b |\n| - | - |\n| 1 | 2 |\n| 3 | 4 |\n');
+    t.select(cellPos(t.state, 1, 0));
+    expect(tableAction(t.ctx, 0, 'deleteRow')).toBe(true);
+    expect(t.md()).toBe('| a | b |\n| - | - |\n| 3 | 4 |');
+  });
+
+  it('the block menu offers the table actions only for tables', () => {
+    expect(blockMenuGroups('table').flatMap((g) => g.items.map((i) => i.id))).toEqual(
+      expect.arrayContaining(['addRowAfter', 'addColumnAfter', 'deleteRow', 'deleteColumn']),
+    );
+    expect(blockMenuGroups('paragraph').flatMap((g) => g.items.map((i) => i.id))).not.toContain('addRowAfter');
+  });
 });

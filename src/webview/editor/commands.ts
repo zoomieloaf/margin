@@ -2,6 +2,7 @@ import { lift, setBlockType, toggleMark, wrapIn } from 'prosemirror-commands';
 import type { Mark, Node as PmNode, NodeType, ResolvedPos } from 'prosemirror-model';
 import { liftListItem, wrapInList } from 'prosemirror-schema-list';
 import { NodeSelection, TextSelection, type Command, type EditorState, type Transaction } from 'prosemirror-state';
+import { addColumnAfter, addRow, addRowAfter, deleteColumn, deleteRow, isInTable, selectedRect, TableMap } from 'prosemirror-tables';
 import { schema } from './schema';
 
 /** Anything that has a current state and can dispatch: an EditorView, or a test harness. */
@@ -208,6 +209,61 @@ export function insertBlock(ctx: Ctx, kind: InsertKind): boolean {
   else tr.setSelection(TextSelection.create(tr.doc, at + node.nodeSize - 1));
   ctx.dispatch(tr.scrollIntoView());
   return true;
+}
+
+// ---------------------------------------------------------------- tables
+
+/** Puts the cursor at the end of the cell at (row, col) of the table starting at `tableStart` (inside the table node). */
+function selectCell(tr: Transaction, tableStart: number, row: number, col: number): Transaction {
+  const table = tr.doc.nodeAt(tableStart - 1)!;
+  const cellStart = tableStart + TableMap.get(table).positionAt(row, col, table);
+  return tr.setSelection(TextSelection.create(tr.doc, cellStart + 1 + tr.doc.nodeAt(cellStart)!.content.size));
+}
+
+/** Enter in a table cell: go to the cell below, adding a row when in the last one. */
+export const tableEnter: Command = (state, dispatch) => {
+  if (!isInTable(state)) return false;
+  const rect = selectedRect(state);
+  if (dispatch) {
+    const tr = state.tr;
+    if (rect.bottom >= rect.map.height) addRow(tr, rect, rect.map.height);
+    dispatch(selectCell(tr, rect.tableStart, rect.bottom, rect.left).scrollIntoView());
+  }
+  return true;
+};
+
+/** Tab in the last cell of a table: add a row and go to its first cell. */
+export const tableTabAddRow: Command = (state, dispatch) => {
+  if (!isInTable(state)) return false;
+  const rect = selectedRect(state);
+  if (rect.bottom !== rect.map.height || rect.right !== rect.map.width) return false;
+  if (dispatch) {
+    const tr = state.tr;
+    addRow(tr, rect, rect.map.height);
+    dispatch(selectCell(tr, rect.tableStart, rect.map.height, 0).scrollIntoView());
+  }
+  return true;
+};
+
+export type TableActionId = 'addRowAfter' | 'addColumnAfter' | 'deleteRow' | 'deleteColumn';
+const TABLE_COMMANDS: Record<TableActionId, Command> = { addRowAfter, addColumnAfter, deleteRow, deleteColumn };
+
+/**
+ * A table action from the block menu of top-level block `index`. It applies at the cursor
+ * when the cursor is in that table, otherwise at its last cell (new row at the bottom, new
+ * column on the right, or the last row / column deleted).
+ */
+export function tableAction(ctx: Ctx, index: number, action: TableActionId): boolean {
+  const { doc, selection } = ctx.state;
+  const table = doc.child(index);
+  if (table.type !== n.table) return false;
+  const start = topPos(doc, index);
+  if (!(selection.from > start && selection.to < start + table.nodeSize)) {
+    const map = TableMap.get(table);
+    const lastCell = start + 1 + map.map[map.map.length - 1]!;
+    ctx.dispatch(ctx.state.tr.setSelection(TextSelection.create(doc, lastCell + 1)));
+  }
+  return run(ctx, TABLE_COMMANDS[action]);
 }
 
 // ---------------------------------------------------------------- whole top-level blocks

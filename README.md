@@ -10,7 +10,7 @@ Margin opens your `.md` files as a clean, rendered document inside VS Code, Curs
 - **Slash menu.** Type `/` on an empty line to insert headings, lists, to-dos, quotes, callouts, code blocks, tables, dividers or a Mermaid diagram. Each item shows its Markdown syntax.
 - **Markdown shortcuts while typing.** `#`, `##`, `-`, `1.`, `>`, `[]`, ```` ``` ```` and `---` each convert the line as you type.
 - **Block handles.** Hover a block, drag `⋮⋮` to move it, click it to duplicate, move or delete, or use `+` to add a block below.
-- **Tables.** Tab and Shift+Tab move between cells; Enter moves down.
+- **Tables.** Tab and Shift+Tab move between cells, and Tab in the last cell adds a row. Enter moves to the cell below and adds a row at the end. The block menu (`⋮⋮`) adds a row below or a column on the right, and deletes rows or columns.
 - **Outline panel** with the current section, word count, reading time and task progress.
 - **GitHub callouts** (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) and to-do checkboxes you can click even in Preview.
 - **Export.** Export to **PDF** using the Edge or Chrome already on your machine, with nothing to download. Export to **HTML** as a single file. **Copy as rich text** for Slack, email or Confluence, or **copy as Markdown**.
@@ -42,6 +42,8 @@ Undo and redo use VS Code's own history, so Ctrl+Z works across Margin, the text
 | Link | Ctrl+K | Cmd+K |
 | Line break inside a block | Shift+Enter | Shift+Enter |
 | Indent / outdent list item | Tab / Shift+Tab | Tab / Shift+Tab |
+| Next / previous table cell (Tab in the last cell adds a row) | Tab / Shift+Tab | Tab / Shift+Tab |
+| Cell below in a table (adds a row at the end) | Enter | Enter |
 
 ## Settings
 

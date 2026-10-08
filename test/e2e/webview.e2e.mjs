@@ -182,6 +182,19 @@ await test('a checkbox click changes one character even in an unusually written 
   await page.close();
 });
 
+await test('tables grow: Enter in the last row and Tab in the last cell add rows', async () => {
+  const page = await open('| a | b |\n| - | - |\n| 1 | 2 |\n');
+  await clickChar(page, '.ProseMirror td', 1, 1);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('x');
+  assert.equal(await settle(page), '| a | b |\n| - | - |\n| 1 | 2 |\n|   | x |\n');
+  await page.keyboard.press('Tab');
+  await page.keyboard.type('y');
+  assert.equal(await settle(page), '| a | b |\n| - | - |\n| 1 | 2 |\n|   | x |\n| y |   |\n');
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
 await test('Ctrl+Z is sent to VS Code instead of undoing in the webview', async () => {
   const page = await open('Hello\n');
   await clickChar(page, '.ProseMirror p', 0, 5);

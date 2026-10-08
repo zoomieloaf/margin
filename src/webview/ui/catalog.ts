@@ -1,4 +1,4 @@
-import type { BlockType, InsertKind } from '../editor/commands';
+import type { BlockType, InsertKind, TableActionId } from '../editor/commands';
 
 export interface MenuItem {
   id: string;
@@ -73,6 +73,20 @@ export const BLOCK_ACTIONS: MenuGroup = {
     { id: 'del', label: 'Delete', icon: 'trash' },
   ],
 };
+
+export const TABLE_ACTIONS: Array<MenuItem & { id: TableActionId }> = [
+  { id: 'addRowAfter', label: 'Add row below', icon: 'plus' },
+  { id: 'addColumnAfter', label: 'Add column right', icon: 'plus' },
+  { id: 'deleteRow', label: 'Delete row', icon: 'minus' },
+  { id: 'deleteColumn', label: 'Delete column', icon: 'minus' },
+];
+
+/** The ⋮⋮ block menu for a top-level node of type `nodeType`: tables get row and column actions instead of "Turn into". */
+export function blockMenuGroups(nodeType: string): MenuGroup[] {
+  return nodeType === 'table'
+    ? [{ title: 'Table', items: TABLE_ACTIONS }, BLOCK_ACTIONS]
+    : [{ title: 'Turn into', items: BLOCKS }, BLOCK_ACTIONS];
+}
 
 /** Slash-menu groups filtered by what the user typed after `/`. */
 export function slashGroups(query: string): MenuGroup[] {

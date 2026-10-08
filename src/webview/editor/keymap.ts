@@ -4,6 +4,7 @@ import { keymap } from 'prosemirror-keymap';
 import { liftListItem, sinkListItem, splitListItem } from 'prosemirror-schema-list';
 import { TextSelection, type Command, type Plugin } from 'prosemirror-state';
 import { goToNextCell } from 'prosemirror-tables';
+import { tableEnter, tableTabAddRow } from './commands';
 import { schema } from './schema';
 
 const n = schema.nodes;
@@ -87,9 +88,9 @@ export function editorKeymaps(h: KeyHandlers): Plugin[] {
       'Shift-Mod-x': notInCode(toggleMark(m.strike!)),
       'Shift-Mod-h': notInCode(toggleMark(m.mark!)),
       'Mod-`': notInCode(toggleMark(m.code!)),
-      Enter: splitListItem(n.list_item!),
+      Enter: chainCommands(tableEnter, splitListItem(n.list_item!)),
       'Shift-Enter': chainCommands(exitCode, insertHardBreak),
-      Tab: chainCommands(goToNextCell(1), sinkListItem(n.list_item!)),
+      Tab: chainCommands(goToNextCell(1), tableTabAddRow, sinkListItem(n.list_item!)),
       'Shift-Tab': chainCommands(goToNextCell(-1), liftListItem(n.list_item!)),
     }),
     keymap(baseKeymap),

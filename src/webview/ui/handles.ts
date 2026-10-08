@@ -1,8 +1,10 @@
 import { TextSelection } from 'prosemirror-state';
-import { deleteTopBlock, duplicateTopBlock, moveTopBlock, selectTopBlockStart, setBlock, type BlockType } from '../editor/commands';
+import {
+  deleteTopBlock, duplicateTopBlock, moveTopBlock, selectTopBlockStart, setBlock, tableAction, type BlockType, type TableActionId,
+} from '../editor/commands';
 import { schema } from '../editor/schema';
 import type { AppApi } from './api';
-import { BLOCKS, BLOCK_ACTIONS } from './catalog';
+import { blockMenuGroups, TABLE_ACTIONS } from './catalog';
 import { icon } from './icons';
 
 /** `+` and `⋮⋮` handles beside the hovered top-level block: add below, drag to move, click for options. */
@@ -145,9 +147,10 @@ export class Handles {
     const r = this.grip.getBoundingClientRect();
     this.app.menu.open(
       { left: r.left, top: r.top, bottom: r.bottom },
-      [{ title: 'Turn into', items: BLOCKS }, BLOCK_ACTIONS],
+      blockMenuGroups(view.state.doc.child(index).type.name),
       (id) => {
-        if (id === 'dup') duplicateTopBlock(view, index);
+        if (TABLE_ACTIONS.some((a) => a.id === id)) tableAction(view, index, id as TableActionId);
+        else if (id === 'dup') duplicateTopBlock(view, index);
         else if (id === 'up') moveTopBlock(view, index, index - 1);
         else if (id === 'down') moveTopBlock(view, index, index + 2);
         else if (id === 'del') deleteTopBlock(view, index);
