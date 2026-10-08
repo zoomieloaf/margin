@@ -337,6 +337,8 @@ class App implements AppApi {
     const box = document.createElement('div');
     box.append(DOMSerializer.fromSchema(schema).serializeFragment(this.view.state.doc.content));
     box.querySelectorAll('[contenteditable]').forEach((el) => el.removeAttribute('contenteditable'));
+    // Margin-only attributes (raw Markdown for copy/paste inside Margin) aren't for other apps.
+    box.querySelectorAll('[data-margin-raw]').forEach((el) => el.removeAttribute('data-margin-raw'));
     const html = box.innerHTML;
     const text = box.innerText || this.view.state.doc.textContent;
     try {

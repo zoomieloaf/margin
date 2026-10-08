@@ -1,5 +1,35 @@
-import { Schema, type DOMOutputSpec, type MarkSpec, type NodeSpec } from 'prosemirror-model';
+import { Schema, type DOMOutputSpec, type MarkSpec, type NodeSpec, type Node as PmNode, type TagParseRule } from 'prosemirror-model';
 import { tableNodes } from 'prosemirror-tables';
+
+/**
+ * Raw nodes carry their Markdown (source text and mdast) in `data-margin-raw`, so copy and paste
+ * inside Margin brings them back as the same nodes instead of code blocks or escaped text.
+ */
+const RAW_ATTR = 'data-margin-raw';
+const rawData = (kind: string, attrs: Record<string, unknown>): string => JSON.stringify({ kind, ...attrs });
+/** A parse rule for a raw node of `kind`: restores `keys` from the JSON, ignores anything else. */
+function rawRule(tag: string, kind: string, keys: string[]): TagParseRule {
+  return {
+    tag: `${tag}[${RAW_ATTR}]`,
+    priority: 60, // before the plain `pre` (code block) rule
+    getAttrs: (dom) => {
+      try {
+        const data = JSON.parse((dom as HTMLElement).getAttribute(RAW_ATTR) ?? '') as Record<string, unknown>;
+        if (data.kind !== kind || data.mdast === null || typeof data.mdast !== 'object') return false;
+        return Object.fromEntries(keys.map((k) => [k, data[k] ?? null]));
+      } catch {
+        return false;
+      }
+    },
+  };
+}
+
+/** `spread` (loose list) survives copy and paste as `data-spread`. */
+const spreadAttrs = (node: PmNode): Record<string, string> => (node.attrs.spread == null ? {} : { 'data-spread': String(node.attrs.spread) });
+const spreadFrom = (dom: HTMLElement): boolean | null => {
+  const v = dom.getAttribute('data-spread');
+  return v === 'true' ? true : v === 'false' ? false : null;
+};
 
 /** Every top-level node carries the id of the SourceBlock it renders (null until assigned). */
 const blockId = { blockId: { default: null } };
@@ -81,29 +111,37 @@ const nodes: Record<string, NodeSpec> = {
     group: 'block',
     content: 'list_item+',
     attrs: { spread: { default: null }, ...blockId },
-    parseDOM: [{ tag: 'ul' }],
-    toDOM: (node) => (node.firstChild?.attrs.checked != null ? ['ul', { class: 'tasks' }, 0] : ['ul', 0]),
+    parseDOM: [{ tag: 'ul', getAttrs: (dom) => ({ spread: spreadFrom(dom as HTMLElement) }) }],
+    toDOM: (node) => ['ul', { ...(node.firstChild?.attrs.checked != null ? { class: 'tasks' } : {}), ...spreadAttrs(node) }, 0],
   },
 
   ordered_list: {
     group: 'block',
     content: 'list_item+',
     attrs: { start: { default: 1 }, spread: { default: null }, ...blockId },
-    parseDOM: [{ tag: 'ol', getAttrs: (dom) => ({ start: Number((dom as HTMLElement).getAttribute('start') ?? 1) }) }],
-    toDOM: (node) => ['ol', node.attrs.start === 1 ? {} : { start: String(node.attrs.start) }, 0],
+    parseDOM: [{ tag: 'ol', getAttrs: (dom) => ({ start: Number((dom as HTMLElement).getAttribute('start') ?? 1), spread: spreadFrom(dom as HTMLElement) }) }],
+    toDOM: (node) => ['ol', { ...(node.attrs.start === 1 ? {} : { start: String(node.attrs.start) }), ...spreadAttrs(node) }, 0],
   },
 
   list_item: {
     content: 'block+',
     defining: true,
     attrs: { checked: { default: null }, spread: { default: null } },
-    parseDOM: [{ tag: 'li' }],
+    parseDOM: [{
+      tag: 'li',
+      getAttrs: (dom) => {
+        const el = dom as HTMLElement;
+        const task = el.classList.contains('task');
+        return { checked: task ? el.classList.contains('done') : null, spread: spreadFrom(el) };
+      },
+      contentElement: (dom) => (dom as HTMLElement).querySelector(':scope > .task-body') ?? dom,
+    }],
     toDOM: (node): DOMOutputSpec => {
       const checked = node.attrs.checked as boolean | null;
-      if (checked === null) return ['li', 0];
+      if (checked === null) return ['li', spreadAttrs(node), 0];
       return [
         'li',
-        { class: checked ? 'task done' : 'task' },
+        { class: checked ? 'task done' : 'task', ...spreadAttrs(node) },
         ['span', { class: checked ? 'cb on' : 'cb', contenteditable: 'false', role: 'checkbox', 'aria-checked': String(checked) }],
         ['div', { class: 'task-body' }, 0],
       ];
@@ -121,7 +159,8 @@ const nodes: Record<string, NodeSpec> = {
     atom: true,
     selectable: true,
     attrs: { source: { default: '' }, mdast: { default: null }, ...blockId },
-    toDOM: (node) => ['pre', { class: 'raw', contenteditable: 'false' }, node.attrs.source as string],
+    parseDOM: [rawRule('pre', 'raw', ['source', 'mdast'])],
+    toDOM: (node) => ['pre', { class: 'raw', contenteditable: 'false', [RAW_ATTR]: rawData('raw', { source: node.attrs.source, mdast: node.attrs.mdast }) }, node.attrs.source as string],
   },
 
   /** A nested block we have no editor for (inside a list item or quote); kept as its mdast. */
@@ -129,7 +168,8 @@ const nodes: Record<string, NodeSpec> = {
     group: 'block',
     atom: true,
     attrs: { mdast: { default: null }, text: { default: '' }, ...blockId },
-    toDOM: (node) => ['pre', { class: 'raw', contenteditable: 'false' }, node.attrs.text as string],
+    parseDOM: [rawRule('pre', 'block_raw', ['mdast', 'text'])],
+    toDOM: (node) => ['pre', { class: 'raw', contenteditable: 'false', [RAW_ATTR]: rawData('block_raw', { mdast: node.attrs.mdast, text: node.attrs.text }) }, node.attrs.text as string],
   },
 
   text: { group: 'inline' },
@@ -157,7 +197,8 @@ const nodes: Record<string, NodeSpec> = {
     inline: true,
     atom: true,
     attrs: { mdast: { default: null }, text: { default: '' } },
-    toDOM: (node) => ['span', { class: 'inline-raw', contenteditable: 'false' }, node.attrs.text as string],
+    parseDOM: [rawRule('span', 'inline_raw', ['mdast', 'text'])],
+    toDOM: (node) => ['span', { class: 'inline-raw', contenteditable: 'false', [RAW_ATTR]: rawData('inline_raw', { mdast: node.attrs.mdast, text: node.attrs.text }) }, node.attrs.text as string],
   },
 };
 
