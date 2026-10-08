@@ -322,6 +322,190 @@ await test('a #anchor link in Preview scrolls to the heading instead of asking t
   await page.close();
 });
 
+const LINKS = 'See [setup](./setup.md) and [gone](./gone.md#top) for more.\n';
+const openLinks = (page) => page.evaluate(() => window.host.posted.filter((m) => m.type === 'openLink').map((m) => m.href));
+
+await test('a plain click on a link opens it in Edit mode too; Ctrl+click as well', async () => {
+  const page = await open(LINKS);
+  const at = await charXY(page, '.ProseMirror a', 0, 2);
+  await page.mouse.click(at.x, at.y);
+  await sleep(50);
+  assert.deepEqual(await openLinks(page), ['./setup.md']);
+  await sleep(600); // not a double-click
+  const gone = await charXY(page, '.ProseMirror a', 1, 1);
+  await page.keyboard.down(mod);
+  await page.mouse.click(gone.x, gone.y);
+  await page.keyboard.up(mod);
+  await sleep(50);
+  assert.deepEqual(await openLinks(page), ['./setup.md', './gone.md#top']);
+  assert.equal(await settle(page), LINKS);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('dragging across or from a link selects text and opens nothing; Shift+click opens nothing', async () => {
+  const page = await open(LINKS);
+  const start = await charXY(page, '.ProseMirror p', 0, 0);
+  const end = await charXY(page, '.ProseMirror p', 0, 16);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await page.mouse.up();
+  await sleep(50);
+  assert.equal(await page.evaluate(() => getSelection().toString()), 'See setup and go');
+  await sleep(600);
+  // A drag that starts on the link.
+  const inLink = await charXY(page, '.ProseMirror a', 0, 1);
+  await page.mouse.move(inLink.x, inLink.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await page.mouse.up();
+  await sleep(600);
+  await page.keyboard.down('Shift');
+  await page.mouse.click(inLink.x, inLink.y);
+  await page.keyboard.up('Shift');
+  await sleep(50);
+  assert.deepEqual(await openLinks(page), []);
+  assert.equal(await settle(page), LINKS);
+  await page.close();
+});
+
+await test('in Preview, dragging across a link selects text; a drag from a link opens nothing', async () => {
+  const page = await open(LINKS, 'preview');
+  const start = await charXY(page, '.ProseMirror p', 0, 0);
+  const end = await charXY(page, '.ProseMirror p', 0, 16);
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await page.mouse.up();
+  await sleep(50);
+  assert.equal(await page.evaluate(() => getSelection().toString()), 'See setup and go');
+  await sleep(600);
+  // Chromium never starts a selection on a link outside editable text (Alt+drag does); it must not open either.
+  const inLink = await charXY(page, '.ProseMirror a', 0, 1);
+  await page.mouse.move(inLink.x, inLink.y);
+  await page.mouse.down();
+  await page.mouse.move(end.x, end.y, { steps: 8 });
+  await page.mouse.up();
+  await sleep(50);
+  assert.deepEqual(await openLinks(page), []);
+  await page.close();
+});
+
+/** Hovers the n-th link and waits for the link card. */
+async function hoverLink(page, n) {
+  const at = await charXY(page, '.ProseMirror a', n, 1);
+  await page.mouse.move(at.x - 30, at.y + 40);
+  await page.mouse.move(at.x, at.y, { steps: 4 });
+  await page.waitForSelector('.linkcard:not([hidden])', { timeout: 2000 });
+}
+
+await test('hovering a link in Edit mode shows a card: Open, Copy link and Edit link work', async () => {
+  const page = await open(LINKS);
+  await page.evaluate(() => {
+    window.copied = [];
+    navigator.clipboard.writeText = (t) => { window.copied.push(t); return Promise.resolve(); };
+  });
+  await hoverLink(page, 0);
+  assert.equal(await page.$eval('.linkcard .lc-href', (e) => e.textContent), './setup.md');
+  const buttons = await page.$$eval('.linkcard button', (bs) => bs.map((b) => [b.textContent.trim(), b.title !== '']));
+  assert.deepEqual(buttons, [['Open', true], ['Edit link', true], ['Copy link', true]]);
+
+  await page.click('.linkcard [data-act="copy"]');
+  assert.deepEqual(await page.evaluate(() => window.copied), ['./setup.md']);
+  assert.equal(await page.$eval('.linkcard', (e) => e.hidden), true, 'a button hides the card');
+
+  await page.mouse.move(5, 5);
+  await hoverLink(page, 1);
+  await page.click('.linkcard [data-act="open"]');
+  assert.deepEqual(await openLinks(page), ['./gone.md#top']);
+
+  await page.mouse.move(5, 5);
+  await hoverLink(page, 0);
+  await page.click('.linkcard [data-act="edit"]');
+  await page.waitForSelector('.linkrow:not([hidden])');
+  assert.equal(await page.$eval('.linkrow input', (i) => i.value), './setup.md');
+  await page.keyboard.down(mod);
+  await page.keyboard.press('a');
+  await page.keyboard.up(mod);
+  await page.keyboard.type('./install.md');
+  await page.keyboard.press('Enter');
+  assert.equal(await settle(page), 'See [setup](./install.md) and [gone](./gone.md#top) for more.\n');
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('the link card hides when the pointer leaves, on typing, and never shows in Preview', async () => {
+  const page = await open(LINKS);
+  await hoverLink(page, 0);
+  // Moving onto the card keeps it.
+  const card = await page.$eval('.linkcard', (e) => { const r = e.getBoundingClientRect(); return { x: r.left + 10, y: r.top + r.height / 2 }; });
+  await page.mouse.move(card.x, card.y, { steps: 3 });
+  await sleep(400);
+  assert.equal(await page.$eval('.linkcard', (e) => e.hidden), false, 'moving onto the card keeps it');
+  await page.mouse.move(600, 600);
+  await sleep(400);
+  assert.equal(await page.$eval('.linkcard', (e) => e.hidden), true, 'leaving hides it');
+
+  await clickChar(page, '.ProseMirror p', 0, 1);
+  await hoverLink(page, 0);
+  await page.keyboard.type('x');
+  assert.equal(await page.$eval('.linkcard', (e) => e.hidden), true, 'typing hides it');
+
+  await page.evaluate(() => window.postMessage({ type: 'setMode', mode: 'preview' }, '*'));
+  await page.mouse.move(5, 5);
+  const at = await charXY(page, '.ProseMirror a', 0, 1);
+  await page.mouse.move(at.x, at.y, { steps: 4 });
+  await sleep(700);
+  assert.equal(await page.$eval('.linkcard', (e) => e.hidden), true, 'no card in Preview');
+  await page.close();
+});
+
+await test('broken links are marked after the host answers checkLinks, without any edit', async () => {
+  const page = await open(LINKS, 'preview');
+  const check = await page.evaluate(() => window.host.posted.find((m) => m.type === 'checkLinks'));
+  assert.deepEqual(check, { type: 'checkLinks', hrefs: ['./setup.md', './gone.md#top'] });
+  await page.evaluate(() => window.postMessage({
+    type: 'linkStatus', missing: ['./gone.md#top'], paths: [['./setup.md', 'docs/setup.md'], ['./gone.md#top', 'docs/gone.md']],
+  }, '*'));
+  await sleep(50);
+  const marked = await page.$$eval('.link-missing', (els) => els.map((e) => [e.textContent, e.title, e.closest('a').getAttribute('href')]));
+  assert.deepEqual(marked, [['gone', "docs/gone.md doesn't exist", './gone.md#top']]);
+  assert.equal(await page.$eval('.ProseMirror a [title="docs/setup.md"]', (e) => e.textContent), 'setup');
+  const color = await page.$eval('.link-missing', (e) => getComputedStyle(e).textDecorationStyle);
+  assert.equal(color, 'wavy');
+  // Switching to Edit and back, and the next check, change nothing in the file.
+  await page.click('[data-mode="edit"]');
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await sleep(300);
+  assert.equal(await page.evaluate(() => window.host.posted.filter((m) => m.type === 'checkLinks').length), 2, 'focus checks again');
+  assert.deepEqual(await page.evaluate(() => window.host.posted.filter((m) => m.type === 'edit')), []);
+  assert.equal(await page.evaluate(() => window.host.text), LINKS);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('init with an anchor opens the page scrolled to that heading; scrollTo scrolls an open page', async () => {
+  const filler = Array.from({ length: 40 }, (_, i) => `Paragraph ${i + 1}.`).join('\n\n');
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1100, height: 800 });
+  await page.evaluateOnNewDocument((t) => { window.__initialText = t; window.__mode = 'preview'; window.__anchor = 'install'; }, `# Top\n\n${filler}\n\n## Install\n\n${filler}\n\n## Usage\n\n${filler}\n`);
+  await page.goto(harness);
+  await page.waitForSelector('.app[data-mode]');
+  await sleep(200);
+  const offsetOf = (name) => page.evaluate((name) => {
+    const h = [...document.querySelectorAll('.ProseMirror h2')].find((e) => e.textContent === name);
+    return h.getBoundingClientRect().top - document.querySelector('.scroll').getBoundingClientRect().top;
+  }, name);
+  const install = await offsetOf('Install');
+  assert.ok(install >= 0 && install < 60, `Install is ${install}px from the top`);
+  await page.evaluate(() => window.postMessage({ type: 'scrollTo', anchor: 'usage' }, '*'));
+  await sleep(900);
+  const usage = await offsetOf('Usage');
+  assert.ok(usage >= 0 && usage < 60, `Usage is ${usage}px from the top`);
+  await page.close();
+});
+
 /** Fires a real paste event carrying only text/plain at the caret. */
 const pastePlain = (page, text) => page.evaluate((text) => {
   const dt = new DataTransfer();

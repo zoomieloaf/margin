@@ -5,14 +5,15 @@ import './styles.css';
 import { dropCursor } from 'prosemirror-dropcursor';
 import { gapCursor } from 'prosemirror-gapcursor';
 import { DOMSerializer, type Node as PmNode } from 'prosemirror-model';
-import { EditorState, Selection, type Transaction } from 'prosemirror-state';
+import { EditorState, Selection, TextSelection, type Transaction } from 'prosemirror-state';
 import { tableEditing } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
-import type { HostToWebview, Mode, WebviewToHost } from '../bridge/messages';
+import { MAX_CHECKED_LINKS, type HostToWebview, type Mode, type WebviewToHost } from '../bridge/messages';
 import { activeState, clickTask, insertBlock, setBlock, toggleInline, type BlockType, type InsertKind, type MarkName } from './editor/commands';
 import { findAnchor } from './editor/anchors';
 import { uniqueIds } from './editor/ids';
 import { editorKeymaps } from './editor/keymap';
+import { linkStatusKey, linkStatusPlugin, localLinks, type LinkStatus } from './editor/linkStatus';
 import { markdownTextParser } from './editor/paste';
 import { DocModel } from './editor/model';
 import { schema } from './editor/schema';
@@ -21,6 +22,7 @@ import { Bubble } from './ui/bubble';
 import { AI, BLOCKS, EXPORTS } from './ui/catalog';
 import { installTooltips, toast } from './ui/feedback';
 import { Handles } from './ui/handles';
+import { LinkCard, type LinkCardHost } from './ui/linkcard';
 import { Menu } from './ui/menu';
 import { docStats, Outline } from './ui/outline';
 import { Slash } from './ui/slash';
@@ -32,8 +34,12 @@ declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setS
 const vscode = acquireVsCodeApi();
 const post = (m: WebviewToHost) => vscode.postMessage(m);
 const EDIT_DEBOUNCE_MS = 150;
+/** Pause after typing before the host is asked again which link targets exist. */
+const LINK_CHECK_MS = 500;
+/** A mouse that moved further than this between press and release dragged: no link is opened. */
+const CLICK_SLOP_PX = 4;
 
-class App implements AppApi {
+class App implements AppApi, LinkCardHost {
   mode: Mode = 'preview';
   readonly menu: Menu;
   readonly view: EditorView;
@@ -48,6 +54,13 @@ class App implements AppApi {
   private readonly bubble: Bubble;
   private readonly slash: Slash;
   private readonly outline: Outline;
+  private readonly linkCard: LinkCard;
+  private linkStatus: LinkStatus = { missing: new Set(), paths: new Map() };
+  private linkTimer: number | undefined;
+  /** The local links last sent to the host, one per line. */
+  private checkedLinks = '';
+  /** Where the last mouse press in the document was. */
+  private downAt: { x: number; y: number } | null = null;
   private baseUri = '';
   private timer: number | undefined;
   /** Debounce of the Markdown-mode textarea; undefined when nothing is waiting. */
@@ -105,6 +118,10 @@ class App implements AppApi {
         return false;
       },
       handleDOMEvents: {
+        mousedown: (_view, e) => {
+          this.downAt = { x: e.clientX, y: e.clientY };
+          return false;
+        },
         beforeinput: (_view, e) => {
           const type = (e as InputEvent).inputType;
           if (type === 'historyUndo' || type === 'historyRedo') {
@@ -125,15 +142,23 @@ class App implements AppApi {
       },
     });
     this.bubble = new Bubble(this, document.body);
+    this.linkCard = new LinkCard(this, this.view.dom, document.body);
     new Handles(this, this.scroll, wrap);
     installTooltips(document.body);
 
     window.addEventListener('message', (e: MessageEvent<HostToWebview>) => this.receive(e.data));
     window.addEventListener('keydown', (e) => this.globalKey(e), true);
     // Drives the margin.webviewFocused context key, which routes Ctrl+Z, Ctrl+B... to Margin.
-    window.addEventListener('focus', () => post({ type: 'focus' }));
+    window.addEventListener('focus', () => {
+      post({ type: 'focus' });
+      // Pages may have been created or deleted while VS Code had focus elsewhere.
+      this.checkLinks(true);
+    });
     window.addEventListener('blur', () => post({ type: 'blur' }));
-    this.scroll.addEventListener('scroll', () => this.bubble.update(this.view, false), { passive: true });
+    this.scroll.addEventListener('scroll', () => {
+      this.bubble.update(this.view, false);
+      this.linkCard.hide();
+    }, { passive: true });
     window.addEventListener('resize', () => this.menu.close());
     // Don't keep typing back when the tab is hidden or the webview goes away.
     document.addEventListener('visibilitychange', () => {
@@ -158,6 +183,7 @@ class App implements AppApi {
           toggleMode: () => this.setMode(this.mode === 'edit' ? 'preview' : 'edit'),
           editLink: () => this.bubble.openLink(),
         }),
+        linkStatusPlugin(() => this.linkStatus),
         tableEditing(),
         dropCursor({ color: 'var(--m-accent)', width: 2 }),
         gapCursor(),
@@ -173,7 +199,10 @@ class App implements AppApi {
     this.slash.map(tr);
     this.view.updateState(before.apply(tr));
     const docChanged = this.view.state.doc !== before.doc;
-    if (docChanged) this.schedule();
+    if (docChanged) {
+      this.schedule();
+      this.scheduleLinkCheck();
+    }
     this.slash.update(this.view);
     this.refreshUi(!before.selection.eq(this.view.state.selection), docChanged);
   }
@@ -181,6 +210,25 @@ class App implements AppApi {
   private schedule(): void {
     window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => this.model.change(this.view.state.doc), EDIT_DEBOUNCE_MS);
+  }
+
+  private scheduleLinkCheck(): void {
+    window.clearTimeout(this.linkTimer);
+    this.linkTimer = window.setTimeout(() => this.checkLinks(false), LINK_CHECK_MS);
+  }
+
+  /**
+   * Asks the host which local link targets exist (the answer marks broken links). `again`: even when
+   * the links are the ones already checked, because files may have changed.
+   */
+  private checkLinks(again: boolean): void {
+    window.clearTimeout(this.linkTimer);
+    const hrefs = localLinks(this.view.state.doc).slice(0, MAX_CHECKED_LINKS);
+    const key = hrefs.join('\n');
+    if (!again && key === this.checkedLinks) return;
+    this.checkedLinks = key;
+    if (!hrefs.length && !this.linkStatus.missing.size && !this.linkStatus.paths.size) return;
+    post({ type: 'checkLinks', hrefs });
   }
 
   /** Markdown mode: textarea changes reach the file after the same short pause as editor changes. */
@@ -227,6 +275,7 @@ class App implements AppApi {
       this.autoGrow();
     }
     this.refreshUi(true);
+    this.scheduleLinkCheck();
   }
 
   private receive(m: HostToWebview): void {
@@ -236,6 +285,12 @@ class App implements AppApi {
         this.outline.visible = m.settings.outlineVisible && innerWidth >= 900;
         this.load(this.model.load(m.text, m.version), false);
         this.setMode(m.mode);
+        if (m.anchor) {
+          const anchor = m.anchor;
+          // Opened from a link to one of its headings: start there.
+          requestAnimationFrame(() => this.scrollToAnchor(anchor, false));
+        }
+        this.checkLinks(true);
         break;
       case 'ack':
         this.model.ack(m.version, m.seq);
@@ -253,6 +308,14 @@ class App implements AppApi {
         break;
       case 'toast':
         toast(m.text, m.sub);
+        break;
+      case 'scrollTo':
+        this.scrollToAnchor(m.anchor);
+        break;
+      case 'linkStatus':
+        this.linkStatus = { missing: new Set(m.missing), paths: new Map(m.paths) };
+        // A decoration update only: no document change, so nothing is sent to the file.
+        this.view.dispatch(this.view.state.tr.setMeta(linkStatusKey, true));
         break;
     }
   }
@@ -283,6 +346,7 @@ class App implements AppApi {
       this.view.focus();
     }
     this.menu.close();
+    this.linkCard.hide();
     this.refreshUi(true);
     post({ type: 'mode', mode });
   }
@@ -393,26 +457,61 @@ class App implements AppApi {
       }
     }
     const a = target.closest('a');
-    if (a && (this.mode !== 'edit' || e.ctrlKey || e.metaKey)) {
+    if (a && this.followsClick(e)) {
       const href = a.getAttribute('href');
-      if (href?.startsWith('#')) this.scrollToAnchor(href.slice(1));
-      else if (href) post({ type: 'openLink', href });
+      if (href) this.openHref(href);
       e.preventDefault();
       return true;
     }
     return false;
   }
 
+  /**
+   * A click on a link opens it, in Preview and in Edit mode alike (Notion style), with or without
+   * Ctrl/Cmd. Not after a drag or with text selected (that was selecting), and not with Shift or Alt
+   * (those extend the selection). To edit a link's text, click just after it or use the arrow keys.
+   */
+  private followsClick(e: MouseEvent): boolean {
+    if (e.button !== 0 || e.shiftKey || e.altKey) return false;
+    if (this.downAt && Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y) > CLICK_SLOP_PX) return false;
+    return getSelection()?.isCollapsed ?? true;
+  }
+
+  openHref(href: string): void {
+    if (href.startsWith('#')) this.scrollToAnchor(href.slice(1));
+    else post({ type: 'openLink', href });
+  }
+
+  /** Selects the whole link and opens the link editor on it (the link card's Edit link). */
+  editLink(a: HTMLAnchorElement): void {
+    if (this.mode !== 'edit') return;
+    const view = this.view;
+    const from = view.posAtDOM(a, 0);
+    const to = view.posAtDOM(a, a.childNodes.length);
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+    view.focus();
+    this.bubble.openLink();
+  }
+
+  copyHref(href: string): void {
+    navigator.clipboard.writeText(href).then(
+      () => toast('Link copied', href),
+      () => toast('Copy was blocked here', href),
+    );
+  }
+
   /** `#fragment` links scroll to the heading with that GitHub id. */
-  private scrollToAnchor(fragment: string): void {
+  private scrollToAnchor(fragment: string, smooth = true): void {
     const pos = findAnchor(this.view.state.doc, fragment);
     const dom = pos === null ? null : this.view.nodeDOM(pos);
     if (!(dom instanceof HTMLElement)) return;
     const top = this.scroll.scrollTop + dom.getBoundingClientRect().top - this.scroll.getBoundingClientRect().top - 16;
-    this.scroll.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    const motion = smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.scroll.scrollTo({ top, behavior: motion ? 'smooth' : 'auto' });
   }
 
   private globalKey(e: KeyboardEvent): void {
+    this.linkCard.hide();
     const mod = e.ctrlKey || e.metaKey;
     const k = shortcutKey(e);
     const inInput = e.target instanceof HTMLInputElement;
