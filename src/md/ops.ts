@@ -3,7 +3,7 @@ import { nodeKey } from './key';
 import { kindOf } from './parse';
 import { serializeBlock } from './serialize';
 import type { MdDocument, SourceBlock } from './types';
-import { blockText } from './write';
+import { renderBlocks } from './write';
 
 const separator = (doc: MdDocument) => doc.conventions.eol + doc.conventions.eol;
 
@@ -39,13 +39,17 @@ function place(doc: MdDocument, block: SourceBlock, index: number): MdDocument {
   return { ...doc, blocks, trailing };
 }
 
-const clamp = (i: number, max: number) => Math.max(0, Math.min(i, max));
+const hasFrontmatter = (doc: MdDocument) => doc.blocks[0]?.data.type === 'yaml';
+
+/** Clamps to [0, length]; a leading frontmatter block always stays first. */
+const clamp = (doc: MdDocument, i: number) =>
+  Math.max(hasFrontmatter(doc) ? 1 : 0, Math.min(i, doc.blocks.length));
 
 export function insertBlock(doc: MdDocument, index: number, data: RootContent, id: string): MdDocument {
   const block: SourceBlock = {
     id, kind: kindOf(data), original: null, originalKey: null, gapBefore: '', data, dirty: true,
   };
-  return place(doc, block, clamp(index, doc.blocks.length));
+  return place(doc, block, clamp(doc, index));
 }
 
 export function removeBlock(doc: MdDocument, id: string): MdDocument {
@@ -58,19 +62,24 @@ export function removeBlock(doc: MdDocument, id: string): MdDocument {
 }
 
 export function moveBlock(doc: MdDocument, id: string, toIndex: number): MdDocument {
-  const block = doc.blocks.find((b) => b.id === id);
-  if (!block) return doc;
+  const i = doc.blocks.findIndex((b) => b.id === id);
+  if (i < 0) return doc;
+  if (i === 0 && hasFrontmatter(doc)) return doc;
   const without = removeBlock(doc, id);
-  return place(without, block, clamp(toIndex, without.blocks.length));
+  return place(without, doc.blocks[i]!, clamp(without, toIndex));
 }
 
+/** Makes the written text the new baseline: originals, keys and gaps become exactly what writeMarkdown emits. */
 export function commit(doc: MdDocument): MdDocument {
+  const rendered = renderBlocks(doc);
   return {
     ...doc,
-    blocks: doc.blocks.map((b) =>
-      b.dirty || b.original === null
-        ? { ...b, original: blockText(b, doc.conventions), originalKey: nodeKey(b.data), dirty: false }
-        : b,
-    ),
+    blocks: doc.blocks.map((b, i) => {
+      const r = rendered[i]!;
+      if (b.dirty || b.original === null) {
+        return { ...b, gapBefore: r.gap, original: r.text, originalKey: nodeKey(b.data), dirty: false };
+      }
+      return r.gap === b.gapBefore ? b : { ...b, gapBefore: r.gap };
+    }),
   };
 }
