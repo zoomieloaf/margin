@@ -1,8 +1,10 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { frontmatterFromMarkdown } from 'mdast-util-frontmatter';
 import { gfmFromMarkdown } from 'mdast-util-gfm';
+import { mathFromMarkdown } from 'mdast-util-math';
 import { frontmatter } from 'micromark-extension-frontmatter';
 import { gfm } from 'micromark-extension-gfm';
+import { math } from 'micromark-extension-math';
 import type { Root, RootContent, Table } from 'mdast';
 import { detectConventions } from './conventions';
 import { liftCallouts } from './callout';
@@ -13,8 +15,8 @@ import type { BlockKind, MdDocument, SourceBlock } from './types';
 
 export function parseTree(src: string): Root {
   const tree = fromMarkdown(src, {
-    extensions: [gfm(), frontmatter(['yaml'])],
-    mdastExtensions: [gfmFromMarkdown(), frontmatterFromMarkdown(['yaml'])],
+    extensions: [gfm(), frontmatter(['yaml']), math()],
+    mdastExtensions: [gfmFromMarkdown(), frontmatterFromMarkdown(['yaml']), mathFromMarkdown()],
   });
   liftCallouts(tree);
   liftHighlights(tree, src);
@@ -37,6 +39,7 @@ export function kindOf(node: RootContent): BlockKind {
     case 'code': return 'code';
     case 'table': return isRectangular(node) ? 'table' : 'raw';
     case 'thematicBreak': return 'divider';
+    case 'math': return 'raw'; // display math is kept verbatim
     default: return 'raw';
   }
 }

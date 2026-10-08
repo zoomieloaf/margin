@@ -1,5 +1,6 @@
 import { frontmatterToMarkdown } from 'mdast-util-frontmatter';
 import { gfmToMarkdown } from 'mdast-util-gfm';
+import { mathToMarkdown } from 'mdast-util-math';
 import { toMarkdown, type Options } from 'mdast-util-to-markdown';
 import type { RootContent } from 'mdast';
 import { calloutHandler } from './callout';
@@ -18,7 +19,7 @@ export function markdownOptions(c: Conventions): Options {
     rule: c.rule,
     listItemIndent: 'one',
     incrementListMarker: true,
-    extensions: [gfmToMarkdown(), frontmatterToMarkdown(['yaml'])],
+    extensions: [gfmToMarkdown(), frontmatterToMarkdown(['yaml']), mathToMarkdown()],
     handlers: { callout: calloutHandler, mark: markHandler, text: textHandler } as unknown as Options['handlers'],
   };
 }

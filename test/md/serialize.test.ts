@@ -71,6 +71,14 @@ describe('serializeBlock', () => {
     expect(serializeBlock(loose, d.conventions)).toBe('use === instead of ==');
   });
 
+  it('keeps inline math unchanged when an edited paragraph is re-serialized', () => {
+    const src = 'Let $x_1 + \\alpha$ be *small*.';
+    const d = parseMarkdown(src + '\n');
+    const p = d.blocks[0]!.data as { children: Array<{ type: string }> };
+    expect(p.children.some((c) => c.type === 'inlineMath')).toBe(true);
+    expect(serializeBlock(d.blocks[0]!.data, d.conventions)).toBe(src);
+  });
+
   it.each([
     '# Heading',
     'Para with **bold**, *em*, ~~del~~, `code`, [link](https://x.y) and ==mark==.',

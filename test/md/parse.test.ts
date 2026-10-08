@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { Paragraph } from 'mdast';
+import { updateBlock } from '../../src/md/ops';
 import { parseMarkdown } from '../../src/md/parse';
+import { writeMarkdown } from '../../src/md/write';
 import type { MdDocument } from '../../src/md/types';
 
 const join = (d: MdDocument) =>
@@ -70,5 +73,20 @@ describe('kindOf table rule', () => {
   });
   it('keeps a rectangular table editable', () => {
     expect(parseMarkdown('| a | b |\n|---|---|\n| 1 | 2 |\n').blocks[0]!.kind).toBe('table');
+  });
+});
+
+describe('math', () => {
+  const block = '$$\n\{a\}\\b\n$$';
+
+  it('keeps a $$ block raw and byte-identical when a neighbour is edited', () => {
+    const src = `Before\n\n${block}\n\nAfter\n`;
+    const doc = parseMarkdown(src);
+    expect(doc.blocks.map((b) => b.kind)).toEqual(['paragraph', 'raw', 'paragraph']);
+    expect(doc.blocks[1]!.data.type).toBe('math');
+    expect(doc.blocks[1]!.original).toBe(block);
+    const p: Paragraph = { type: 'paragraph', children: [{ type: 'text', value: 'After 2' }] };
+    const out = writeMarkdown(updateBlock(doc, doc.blocks[2]!.id, p));
+    expect(out).toBe(`Before\n\n${block}\n\nAfter 2\n`);
   });
 });
