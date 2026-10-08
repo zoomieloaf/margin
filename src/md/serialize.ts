@@ -25,5 +25,5 @@ export function markdownOptions(c: Conventions): Options {
 
 export function serializeBlock(node: RootContent, c: Conventions): string {
   const out = toMarkdown({ type: 'root', children: [node] }, markdownOptions(c)).replace(/\n+$/, '');
-  return c.eol === '\n' ? out : out.replace(/\n/g, '\r\n');
+  return out.replace(/\r?\n/g, c.eol);
 }
