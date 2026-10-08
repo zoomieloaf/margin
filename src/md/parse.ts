@@ -5,15 +5,20 @@ import { frontmatter } from 'micromark-extension-frontmatter';
 import { gfm } from 'micromark-extension-gfm';
 import type { Root, RootContent } from 'mdast';
 import { detectConventions } from './conventions';
+import { liftCallouts } from './callout';
+import { liftHighlights } from './highlight';
 import { createIdGenerator } from './ids';
 import { nodeKey } from './key';
 import type { BlockKind, MdDocument, SourceBlock } from './types';
 
 export function parseTree(src: string): Root {
-  return fromMarkdown(src, {
+  const tree = fromMarkdown(src, {
     extensions: [gfm(), frontmatter(['yaml'])],
     mdastExtensions: [gfmFromMarkdown(), frontmatterFromMarkdown(['yaml'])],
   });
+  liftCallouts(tree);
+  liftHighlights(tree);
+  return tree;
 }
 
 export function kindOf(node: RootContent): BlockKind {
