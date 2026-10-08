@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Paragraph } from 'mdast';
+import type { Paragraph, RootContent } from 'mdast';
 import { commit, insertBlock, moveBlock, removeBlock, updateBlock } from '../../src/md/ops';
 import { parseMarkdown } from '../../src/md/parse';
 import { writeMarkdown } from '../../src/md/write';
@@ -21,6 +21,28 @@ describe('updateBlock', () => {
     const next = updateBlock(doc, b.id, structuredClone(b.data));
     expect(next.blocks[0]!.dirty).toBe(false);
     expect(writeMarkdown(next)).toBe('A  *b*\n');
+  });
+
+  it('is a no-op for an indented code block given without lang/meta', () => {
+    const src = 'Intro\n\n    x\n';
+    const doc = parseMarkdown(src);
+    const next = updateBlock(doc, doc.blocks[1]!.id, { type: 'code', value: 'x' } as RootContent);
+    expect(next.blocks[1]!.dirty).toBe(false);
+    expect(writeMarkdown(next)).toBe(src);
+  });
+
+  it('is a no-op when the data differs structurally but serializes to the original', () => {
+    const src = '# T\n';
+    const doc = parseMarkdown(src);
+    const b = doc.blocks[0]!;
+    const next = updateBlock(doc, b.id, { ...structuredClone(b.data), data: { editorId: 'x' } } as RootContent);
+    expect(next.blocks[0]!.dirty).toBe(false);
+    expect(writeMarkdown(next)).toBe(src);
+  });
+
+  it('is dirty after a real text change', () => {
+    const doc = parseMarkdown('A\n');
+    expect(updateBlock(doc, doc.blocks[0]!.id, para('B')).blocks[0]!.dirty).toBe(true);
   });
 
   it('rewrites only the edited block and keeps odd gaps', () => {

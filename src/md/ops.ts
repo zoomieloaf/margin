@@ -1,17 +1,23 @@
 import type { RootContent } from 'mdast';
 import { nodeKey } from './key';
 import { kindOf } from './parse';
+import { serializeBlock } from './serialize';
 import type { MdDocument, SourceBlock } from './types';
 import { blockText } from './write';
 
 const separator = (doc: MdDocument) => doc.conventions.eol + doc.conventions.eol;
 
+/** A block is clean when its data is structurally the parsed original or serializes to exactly the original text. */
+function isDirty(b: SourceBlock, data: RootContent, doc: MdDocument): boolean {
+  if (b.originalKey === null || b.original === null) return true;
+  if (nodeKey(data) === b.originalKey) return false;
+  return serializeBlock(data, doc.conventions) !== b.original;
+}
+
 export function updateBlock(doc: MdDocument, id: string, data: RootContent): MdDocument {
   return {
     ...doc,
-    blocks: doc.blocks.map((b) =>
-      b.id !== id ? b : { ...b, data, kind: kindOf(data), dirty: b.originalKey === null || nodeKey(data) !== b.originalKey },
-    ),
+    blocks: doc.blocks.map((b) => (b.id !== id ? b : { ...b, data, kind: kindOf(data), dirty: isDirty(b, data, doc) })),
   };
 }
 
