@@ -54,6 +54,20 @@ describe('looksLikeMarkdown', () => {
   it.each(['plain words', '2 * 3 * 4', 'snake_case_name', 'C# is fine', 'price: $5', 'a > b'])(
     'no: %j', (t) => expect(looksLikeMarkdown(t)).toBe(false),
   );
+  it.each(['2024. It was a good year', '# install deps\nnpm install\n# run the app\nnpm start', 'items:\n- name: a', 'total | 5 |'])(
+    'common plain text stays plain: %j', (t) => expect(looksLikeMarkdown(t)).toBe(false),
+  );
+  it.each(['# Title\n\nBody', '- a\n- b', '2. two\n3. three', 'Intro:\n\n- a'])(
+    'yes: %j', (t) => expect(looksLikeMarkdown(t)).toBe(true),
+  );
+});
+
+describe('pasting frontmatter', () => {
+  it('below the top of the file it becomes a yaml code block, not a divider and a heading', () => {
+    const r = paste('Hi\n', '---\ntitle: X\n---\n\n# Heading', end);
+    expect(r.text).toContain('```yaml\ntitle: X\n```');
+    expect(r.text).toContain('# Heading');
+  });
 });
 
 describe('pasting Markdown text', () => {
