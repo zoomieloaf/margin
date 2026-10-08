@@ -26,6 +26,8 @@ export class DocModel {
   private seen = new Map<string, PmNode>();
   private latest: PmNode | null = null;
   private inFlight = false;
+  /** Callbacks waiting for the model to have nothing unsent or unacknowledged. */
+  private idle: Array<() => void> = [];
   readonly newId = createIdGenerator('n');
 
   constructor(private readonly send: (edit: OutgoingEdit) => void) {}
@@ -43,7 +45,9 @@ export class DocModel {
       this.seen.set(b.id, node);
       return node;
     });
-    return schema.nodes.doc!.create(null, nodes.length ? nodes : [schema.nodes.paragraph!.create()]);
+    const pm = schema.nodes.doc!.create(null, nodes.length ? nodes : [schema.nodes.paragraph!.create()]);
+    this.drainIdle();
+    return pm;
   }
 
   get markdown(): string {
@@ -65,6 +69,23 @@ export class DocModel {
     this.version = version;
     this.inFlight = false;
     this.flush();
+    this.drainIdle();
+  }
+
+  /**
+   * Runs `fn` once every change has been sent and acknowledged (or a reset replaced them):
+   * at once when idle. Undo and redo wait for this, so VS Code undoes the latest edit.
+   */
+  whenIdle(fn: () => void): void {
+    if (this.busy) this.idle.push(fn);
+    else fn();
+  }
+
+  private drainIdle(): void {
+    if (this.busy) return;
+    const ready = this.idle;
+    this.idle = [];
+    ready.forEach((fn) => fn());
   }
 
   /** Replaces the whole document with the host's text (undo, external change, stale edit). */

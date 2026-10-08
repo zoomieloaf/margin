@@ -160,6 +160,47 @@ await test('Ctrl+Z is sent to VS Code instead of undoing in the webview', async 
   await page.close();
 });
 
+await test('Ctrl+Z right after typing sends the edit first, then exactly one undo', async () => {
+  const page = await open('Hello\n');
+  const at = await charXY(page, '.ProseMirror p', 0, 5);
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.type('!');
+  await page.keyboard.down(mod);
+  await page.keyboard.press('z');
+  await page.keyboard.up(mod);
+  await sleep(300);
+  const posted = await page.evaluate(() => window.host.posted.filter((m) => m.type === 'edit' || m.type === 'undo' || m.type === 'redo'));
+  assert.deepEqual(posted.map((m) => m.type), ['edit', 'undo']);
+  assert.equal(await page.evaluate(() => window.host.text), 'Hello!\n');
+  await page.close();
+});
+
+await test('Ctrl+Y and Ctrl+Shift+Z each send one redo', async () => {
+  const page = await open('Hello\n');
+  const at = await charXY(page, '.ProseMirror p', 0, 5);
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.down(mod);
+  await page.keyboard.press('y');
+  await page.keyboard.down('Shift');
+  await page.keyboard.press('z');
+  await page.keyboard.up('Shift');
+  await page.keyboard.up(mod);
+  await sleep(100);
+  const posted = await page.evaluate(() => window.host.posted.map((m) => m.type).filter((t) => t === 'undo' || t === 'redo'));
+  assert.deepEqual(posted, ['redo', 'redo']);
+  await page.close();
+});
+
+await test('the webview reports focus and blur to the host', async () => {
+  const page = await open('Hello\n');
+  const at = await charXY(page, '.ProseMirror p', 0, 2);
+  await page.mouse.click(at.x, at.y);
+  await page.evaluate(() => { window.dispatchEvent(new Event('blur')); window.dispatchEvent(new Event('focus')); });
+  const posted = await page.evaluate(() => window.host.posted.map((m) => m.type).filter((t) => t === 'focus' || t === 'blur'));
+  assert.deepEqual(posted.slice(-2), ['blur', 'focus']);
+  await page.close();
+});
+
 await test('an external change resets the editor', async () => {
   const page = await open('Old text\n');
   await page.evaluate(() => {

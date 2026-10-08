@@ -15,6 +15,8 @@ describe('isWebviewMessage', () => {
     { type: 'exportHtml' },
     { type: 'copyMarkdown' },
     { type: 'log', text: 'hi' },
+    { type: 'focus' },
+    { type: 'blur' },
   ])('accepts %j', (m) => {
     expect(isWebviewMessage(m)).toBe(true);
   });

@@ -116,6 +116,37 @@ describe('DocModel', () => {
     expect(sent[1]).toEqual({ version: 8, edits: [{ start: 3, end: 3, text: '?' }] });
   });
 
+  it('whenIdle runs at once when idle, otherwise only after every pending edit is acked', () => {
+    const sent: OutgoingEdit[] = [];
+    const model = new DocModel((e) => sent.push(e));
+    let state = EditorState.create({ doc: model.load('Hi\n', 1), plugins: [uniqueIds(model.newId)] });
+    const log: string[] = [];
+    model.whenIdle(() => log.push('a'));
+    expect(log).toEqual(['a']);
+    state = state.apply(state.tr.insertText('!', 3));
+    model.change(state.doc);
+    state = state.apply(state.tr.insertText('?', 4));
+    model.change(state.doc); // held until the first edit is acked
+    model.whenIdle(() => log.push('undo'));
+    expect(log).toEqual(['a']);
+    model.ack(2); // sends the held edit; still busy
+    expect(sent).toHaveLength(2);
+    expect(log).toEqual(['a']);
+    model.ack(3);
+    expect(log).toEqual(['a', 'undo']);
+  });
+
+  it('whenIdle callbacks also run after a reset', () => {
+    const model = new DocModel(() => {});
+    const state = EditorState.create({ doc: model.load('A\n', 1) });
+    model.change(state.apply(state.tr.insertText('x', 1)).doc);
+    const log: string[] = [];
+    model.whenIdle(() => log.push('undo'));
+    expect(log).toEqual([]);
+    model.reset('B\n', 5);
+    expect(log).toEqual(['undo']);
+  });
+
   it('reset discards pending changes and reloads', () => {
     const sent: OutgoingEdit[] = [];
     const model = new DocModel((e) => sent.push(e));

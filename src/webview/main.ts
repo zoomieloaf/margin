@@ -90,7 +90,7 @@ class App implements AppApi {
           const type = (e as InputEvent).inputType;
           if (type === 'historyUndo' || type === 'historyRedo') {
             e.preventDefault();
-            post({ type: type === 'historyUndo' ? 'undo' : 'redo' });
+            this.history(type === 'historyUndo' ? 'undo' : 'redo');
             return true;
           }
           return false;
@@ -111,9 +111,13 @@ class App implements AppApi {
 
     window.addEventListener('message', (e: MessageEvent<HostToWebview>) => this.receive(e.data));
     window.addEventListener('keydown', (e) => this.globalKey(e), true);
+    // Drives the margin.webviewFocused context key, which routes Ctrl+Z, Ctrl+B... to Margin.
+    window.addEventListener('focus', () => post({ type: 'focus' }));
+    window.addEventListener('blur', () => post({ type: 'blur' }));
     this.scroll.addEventListener('scroll', () => this.bubble.update(this.view, false), { passive: true });
     window.addEventListener('resize', () => this.menu.close());
     post({ type: 'ready' });
+    if (document.hasFocus()) post({ type: 'focus' });
   }
 
   // ---------------------------------------------------------------- state & sync
@@ -125,8 +129,8 @@ class App implements AppApi {
         uniqueIds(this.model.newId),
         this.slash.plugin(),
         ...editorKeymaps({
-          undo: () => post({ type: 'undo' }),
-          redo: () => post({ type: 'redo' }),
+          undo: () => this.history('undo'),
+          redo: () => this.history('redo'),
           toggleMode: () => this.setMode(this.mode === 'edit' ? 'preview' : 'edit'),
           editLink: () => this.bubble.openLink(),
         }),
@@ -159,6 +163,15 @@ class App implements AppApi {
   private flushNow(): void {
     window.clearTimeout(this.timer);
     this.model.change(this.view.state.doc);
+  }
+
+  /**
+   * Undo/redo go to VS Code's history. Pending typing is sent first and acknowledged, so the
+   * undo step VS Code takes is exactly the latest edit. One call = one message = one step.
+   */
+  private history(kind: 'undo' | 'redo'): void {
+    this.flushNow();
+    this.model.whenIdle(() => post({ type: kind }));
   }
 
   private load(doc: PmNode, keepSelection: boolean): void {
@@ -239,7 +252,7 @@ class App implements AppApi {
         this.bubble.openLink();
         return;
       case 'undo': case 'redo':
-        post({ type: action });
+        this.history(action);
         break;
       case 'block':
         if (arg) setBlock(view, arg as BlockType);
@@ -329,7 +342,13 @@ class App implements AppApi {
   private globalKey(e: KeyboardEvent): void {
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
-    if (mod && !e.shiftKey && k === 'e') {
+    const inInput = e.target instanceof HTMLInputElement; // the link field keeps its own undo
+    if (mod && !e.altKey && !inInput && (k === 'z' || (k === 'y' && !e.shiftKey))) {
+      // Everywhere in the webview (document, Markdown textarea, toolbar): VS Code's history.
+      // preventDefault also keeps ProseMirror's keymap from seeing the key a second time.
+      e.preventDefault();
+      this.history(k === 'y' || e.shiftKey ? 'redo' : 'undo');
+    } else if (mod && !e.shiftKey && k === 'e') {
       e.preventDefault();
       this.setMode(this.mode === 'edit' ? 'preview' : 'edit');
     } else if (this.menu.isOpen && !this.slash.isOpen && this.menu.handleKey(e)) {

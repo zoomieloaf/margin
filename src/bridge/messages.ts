@@ -18,7 +18,10 @@ export type WebviewToHost =
   | { type: 'exportPdf' }
   | { type: 'exportHtml' }
   | { type: 'copyMarkdown' }
-  | { type: 'log'; text: string };
+  | { type: 'log'; text: string }
+  /** The webview gained or lost keyboard focus (drives the `margin.webviewFocused` context key). */
+  | { type: 'focus' }
+  | { type: 'blur' };
 
 /** Messages the extension host sends to the webview. */
 export type HostToWebview =
@@ -38,6 +41,7 @@ export function isWebviewMessage(x: unknown): x is WebviewToHost {
   if (!isObj(x) || typeof x.type !== 'string') return false;
   switch (x.type) {
     case 'ready': case 'undo': case 'redo': case 'exportPdf': case 'exportHtml': case 'copyMarkdown':
+    case 'focus': case 'blur':
       return true;
     case 'edit':
       return isInt(x.version) && Array.isArray(x.edits) && x.edits.every(isEdit);

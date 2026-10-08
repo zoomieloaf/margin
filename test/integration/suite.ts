@@ -32,6 +32,32 @@ const tests: Array<[string, () => Promise<void>]> = [
     }
   }],
 
+  ['while the webview has focus, Margin owns Ctrl+Z, Ctrl+B, Ctrl+E, Ctrl+K... (no double undo, no sidebar toggle)', async () => {
+    const ext = vscode.extensions.all.find((e) => e.packageJSON.name === 'margin')!;
+    const bindings = ext.packageJSON.contributes.keybindings as Array<{ command: string; key: string; mac?: string; when?: string }>;
+    const when = "activeCustomEditorId == 'margin.editor' && margin.webviewFocused";
+    const expected: Array<[string, string]> = [
+      ['ctrl+z', 'margin.undo'], ['ctrl+y', 'margin.redo'], ['ctrl+shift+z', 'margin.redo'],
+      ['ctrl+b', 'margin.webviewKey'], ['ctrl+i', 'margin.webviewKey'], ['ctrl+e', 'margin.webviewKey'], ['ctrl+k', 'margin.webviewKey'],
+      ['ctrl+shift+x', 'margin.webviewKey'], ['ctrl+shift+h', 'margin.webviewKey'], ['ctrl+`', 'margin.webviewKey'],
+    ];
+    for (const [key, command] of expected) {
+      const b = bindings.find((k) => k.key === key);
+      assert.ok(b, `no keybinding for ${key}`);
+      assert.equal(b.command, command, key);
+      assert.equal(b.when, when, key);
+      assert.equal(b.mac, key.replace('ctrl+', 'cmd+'), key);
+    }
+    const commands = await vscode.commands.getCommands(true);
+    for (const c of ['margin.undo', 'margin.redo', 'margin.webviewKey']) assert.ok(commands.includes(c), `missing command ${c}`);
+    // The key commands must not change the document themselves (the webview does the work).
+    const doc = await vscode.workspace.openTextDocument(file('callouts.md'));
+    const v = doc.version;
+    await vscode.commands.executeCommand('margin.undo');
+    await vscode.commands.executeCommand('margin.webviewKey');
+    assert.equal(doc.version, v);
+  }],
+
   ['a Markdown file opens in the Margin editor', async () => {
     await vscode.commands.executeCommand('vscode.openWith', file('sample.md'), 'margin.editor');
     await until(() => activeTabInput() instanceof vscode.TabInputCustom, 'custom editor tab');

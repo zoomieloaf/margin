@@ -55,6 +55,14 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('margin.exportPdf', withDocument(exportPdf)),
     vscode.commands.registerCommand('margin.exportHtml', withDocument(exportHtml)),
     vscode.commands.registerCommand('margin.copyMarkdown', withDocument(copyMarkdown)),
+    // VS Code forwards every key pressed in a webview to the workbench, even when the webview
+    // already handled it. While a Margin webview has focus, package.json binds Ctrl+Z, Ctrl+B,
+    // Ctrl+E, Ctrl+K... to these commands, which win over the core bindings and do nothing:
+    // the webview handles the key itself. For undo/redo it first flushes its pending edit and
+    // waits for the ack, then posts one `undo`/`redo` message, so one key press = one undo step.
+    vscode.commands.registerCommand('margin.undo', () => undefined),
+    vscode.commands.registerCommand('margin.redo', () => undefined),
+    vscode.commands.registerCommand('margin.webviewKey', () => undefined),
   );
 
   // ---------------------------------------------------------------- first run
