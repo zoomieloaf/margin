@@ -9,6 +9,8 @@ import { webviewHtml } from './webviewHtml';
 export const VIEW_TYPE = 'margin.editor';
 /** True while the active Margin editor's webview has keyboard focus (see the keybindings in package.json). */
 export const FOCUS_CONTEXT = 'margin.webviewFocused';
+/** True while the active Margin editor is in Edit mode: only then does it use the formatting shortcuts. */
+export const EDITING_CONTEXT = 'margin.editing';
 
 export interface Session {
   document: vscode.TextDocument;
@@ -26,6 +28,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly sessions = new Set<Session>();
   private activeSession: Session | undefined;
   private focusContext: boolean | undefined;
+  private editingContext: boolean | undefined;
   private readonly changed = new vscode.EventEmitter<Session | undefined>();
   /** Fires when the active Margin editor, its mode or its word count changes. */
   readonly onDidChangeActive = this.changed.event;
@@ -93,6 +96,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
           break;
         case 'mode':
           session.mode = m.mode;
+          this.updateFocusContext();
           this.changed.fire(this.activeSession);
           break;
         case 'stats':
@@ -154,11 +158,18 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
     this.changed.fire(session);
   }
 
+  /** Keeps the context keys the keybindings in package.json depend on in step with the active editor. */
   private updateFocusContext(): void {
     const focused = this.activeSession?.focused === true;
-    if (focused === this.focusContext) return;
-    this.focusContext = focused;
-    void vscode.commands.executeCommand('setContext', FOCUS_CONTEXT, focused);
+    if (focused !== this.focusContext) {
+      this.focusContext = focused;
+      void vscode.commands.executeCommand('setContext', FOCUS_CONTEXT, focused);
+    }
+    const editing = this.activeSession?.mode === 'edit';
+    if (editing !== this.editingContext) {
+      this.editingContext = editing;
+      void vscode.commands.executeCommand('setContext', EDITING_CONTEXT, editing);
+    }
   }
 
   toggleMode(): void {
@@ -166,6 +177,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
     if (!s) return;
     s.mode = s.mode === 'edit' ? 'preview' : 'edit';
     s.post({ type: 'setMode', mode: s.mode });
+    this.updateFocusContext();
     this.changed.fire(s);
   }
 }

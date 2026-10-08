@@ -36,16 +36,19 @@ const tests: Array<[string, () => Promise<void>]> = [
     const ext = vscode.extensions.all.find((e) => e.packageJSON.name === 'margin')!;
     const bindings = ext.packageJSON.contributes.keybindings as Array<{ command: string; key: string; mac?: string; when?: string }>;
     const when = "activeCustomEditorId == 'margin.editor' && margin.webviewFocused";
-    const expected: Array<[string, string]> = [
-      ['ctrl+z', 'margin.undo'], ['ctrl+y', 'margin.redo'], ['ctrl+shift+z', 'margin.redo'],
-      ['ctrl+b', 'margin.webviewKey'], ['ctrl+i', 'margin.webviewKey'], ['ctrl+e', 'margin.webviewKey'], ['ctrl+k', 'margin.webviewKey'],
-      ['ctrl+shift+x', 'margin.webviewKey'], ['ctrl+shift+h', 'margin.webviewKey'], ['ctrl+`', 'margin.webviewKey'],
+    // Formatting keys only while editing: in Preview and Markdown mode Margin doesn't use them,
+    // so Ctrl+B still toggles the sidebar and Ctrl+` the terminal there.
+    const editing = `${when} && margin.editing`;
+    const expected: Array<[string, string, string]> = [
+      ['ctrl+z', 'margin.undo', when], ['ctrl+y', 'margin.redo', when], ['ctrl+shift+z', 'margin.redo', when], ['ctrl+e', 'margin.webviewKey', when],
+      ['ctrl+b', 'margin.webviewKey', editing], ['ctrl+i', 'margin.webviewKey', editing], ['ctrl+k', 'margin.webviewKey', editing],
+      ['ctrl+shift+x', 'margin.webviewKey', editing], ['ctrl+shift+h', 'margin.webviewKey', editing], ['ctrl+`', 'margin.webviewKey', editing],
     ];
-    for (const [key, command] of expected) {
+    for (const [key, command, condition] of expected) {
       const b = bindings.find((k) => k.key === key);
       assert.ok(b, `no keybinding for ${key}`);
       assert.equal(b.command, command, key);
-      assert.equal(b.when, when, key);
+      assert.equal(b.when, condition, key);
       assert.equal(b.mac, key.replace('ctrl+', 'cmd+'), key);
     }
     const commands = await vscode.commands.getCommands(true);

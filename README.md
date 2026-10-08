@@ -46,7 +46,7 @@ Undo and redo use VS Code's own history, so Ctrl+Z works across Margin, the text
 | Next / previous table cell (Tab in the last cell adds a row) | Tab / Shift+Tab | Tab / Shift+Tab |
 | Cell below in a table (adds a row at the end) | Enter | Enter |
 
-While a Margin editor has focus, these shortcuts belong to Margin: for example Ctrl+B makes text bold instead of toggling the sidebar, and Ctrl+K edits a link instead of starting a chord. Everywhere else they work as usual.
+While you edit in Margin, these shortcuts belong to Margin: for example Ctrl+B makes text bold instead of toggling the sidebar, and Ctrl+K edits a link instead of starting a chord. Undo, redo and Ctrl+E belong to Margin whenever it has focus. In Preview and Markdown mode, and everywhere else, the other shortcuts work as usual.
 
 ## Settings
 
