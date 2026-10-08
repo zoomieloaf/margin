@@ -38,11 +38,12 @@ const tables = tableNodes({
   tableGroup: 'block',
   cellContent: 'inline*',
   cellAttributes: {
+    // A data attribute styled by CSS, not an inline style: the webview's CSP has no 'unsafe-inline'.
     align: {
       default: null,
-      getFromDOM: (dom) => (dom as HTMLElement).style.textAlign || null,
+      getFromDOM: (dom) => (dom as HTMLElement).getAttribute('data-align') || (dom as HTMLElement).style.textAlign || null,
       setDOMAttr: (value, attrs) => {
-        if (value) attrs.style = `text-align:${String(value)}`;
+        if (value) attrs['data-align'] = String(value);
       },
     },
   },

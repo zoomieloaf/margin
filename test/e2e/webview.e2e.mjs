@@ -326,6 +326,16 @@ await test('Markdown mode: a reset over unsent typing shows the file and says so
   await page.close();
 });
 
+await test('under the webview CSP, table alignment and the task progress bar still render', async () => {
+  const page = await open('| L | C | R |\n| :- | :-: | -: |\n| 1 | 2 | 3 |\n\n- [x] a\n- [ ] b\n', 'preview');
+  const align = await page.$$eval('.ProseMirror td', (tds) => tds.map((td) => getComputedStyle(td).textAlign));
+  assert.deepEqual(align, ['left', 'center', 'right']);
+  const width = await page.$eval('.outline .bar i', (i) => i.getBoundingClientRect().width / i.parentElement.getBoundingClientRect().width);
+  assert.ok(Math.abs(width - 0.5) < 0.02, `progress bar at ${width}`);
+  assert.deepEqual(page.errors.filter((e) => /Content Security Policy/i.test(e)), []);
+  await page.close();
+});
+
 await test('untouched file round-trips with no edit at all', async () => {
   const src = '---\ntitle: x\n---\n\n<div align="center">\n  <img src="logo.png">\n</div>\n\n| a | b |\n|:-|-:|\n| 1 | 2 |\n\n> [!note]\n> Lower-case callout.\n';
   const page = await open(src);

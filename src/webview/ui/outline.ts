@@ -71,8 +71,11 @@ export class Outline {
     this.list.innerHTML = items.join('') || '<p class="ol-empty">Add a heading to see it here.</p>';
     const s = docStats(doc);
     this.stats.innerHTML = `<dt>Words</dt><dd>${s.words}</dd><dt>Reading time</dt><dd>${s.minutes} min</dd>${
-      s.tasks ? `<dt>Tasks done</dt><dd>${s.done} of ${s.tasks}</dd><div class="bar"><i style="width:${(s.done / s.tasks) * 100}%"></i></div>` : ''
+      s.tasks ? `<dt>Tasks done</dt><dd>${s.done} of ${s.tasks}</dd><div class="bar"><i></i></div>` : ''
     }`;
+    // Set from script: the webview's CSP blocks inline style attributes in HTML.
+    const bar = this.stats.querySelector<HTMLElement>('.bar i');
+    if (bar) bar.style.width = `${(s.done / s.tasks) * 100}%`;
     this.highlight();
   }
 

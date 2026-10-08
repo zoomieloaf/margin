@@ -117,6 +117,9 @@ svg { flex: none; }
 .doc .tableWrapper { overflow-x: auto; margin: 1em 0; }
 .doc th, .doc td { border: 1px solid var(--m-line-strong); padding: 6px 12px; text-align: left; min-width: 90px; vertical-align: top; }
 .doc th { background: var(--m-side); font-weight: 600; }
+.doc th[data-align="left"], .doc td[data-align="left"] { text-align: left; }
+.doc th[data-align="center"], .doc td[data-align="center"] { text-align: center; }
+.doc th[data-align="right"], .doc td[data-align="right"] { text-align: right; }
 .doc hr { border: 0; border-top: 1px solid var(--m-line-strong); margin: 1.8em 0; }
 .doc .ProseMirror-selectednode { outline: 2px solid var(--m-focus); outline-offset: 2px; border-radius: 4px; }
 .dragging { opacity: 0.35; }

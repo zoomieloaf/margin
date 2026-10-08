@@ -1,6 +1,10 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><link rel="stylesheet" href="../../dist/webview.css">
-<style>body{--vscode-editor-background:#fff;--vscode-editor-foreground:#1c1f26}</style></head>
+<html><head><meta charset="utf-8">
+<!-- Like the real webview's CSP (src/host/webviewHtml.ts): no inline styles. The harness's own
+     inline script and style are allowed through 'unsafe-inline' / a nonce. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data: https: http:; style-src file: 'nonce-harness'; font-src file:; script-src file: 'unsafe-inline'">
+<link rel="stylesheet" href="../../dist/webview.css">
+<style nonce="harness">body{--vscode-editor-background:#fff;--vscode-editor-foreground:#1c1f26}</style></head>
 <body class="vscode-light"><div id="app"></div>
 <script>
 // A fake VS Code host: applies edits to its text, bumps the version and acks.

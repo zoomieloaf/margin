@@ -60,6 +60,17 @@ describe('copy and paste inside Margin keeps raw content as written', () => {
     });
   });
 
+  it('table alignment is a data attribute (no inline style, which the webview CSP blocks) and survives paste', () => {
+    const md = '| a | b | c |\n| :- | :-: | -: |\n| 1 | 2 | 3 |\n';
+    const doc = new DocModel(() => {}).load(md, 1);
+    const box = document.createElement('div');
+    box.append(DOMSerializer.fromSchema(schema).serializeFragment(doc.content));
+    expect([...box.querySelectorAll('td')].map((td) => td.getAttribute('data-align'))).toEqual(['left', 'center', 'right']);
+    expect(box.querySelector('[style]')).toBeNull();
+    const { before, after } = copyPaste(md);
+    expect(write(after[0]!)).toBe(write(before[0]!));
+  });
+
   it('the raw block keeps its exact source text', () => {
     const { after } = copyPaste('<div>\n  hi\n</div>\n');
     expect(after[0]!.type.name).toBe('raw');
