@@ -308,6 +308,20 @@ await test('Export right after typing exports the new text (edit first, then exp
   await page.close();
 });
 
+await test('a #anchor link in Preview scrolls to the heading instead of asking the host', async () => {
+  const filler = Array.from({ length: 40 }, (_, i) => `Paragraph ${i + 1}.`).join('\n\n');
+  const page = await open(`[Jump](#second-section)\n\n${filler}\n\n## Second section\n\n${filler}\n`, 'preview');
+  await page.click('.ProseMirror a');
+  await sleep(900);
+  const offset = await page.evaluate(() => {
+    const h = [...document.querySelectorAll('.ProseMirror h2')].find((e) => e.textContent === 'Second section');
+    return h.getBoundingClientRect().top - document.querySelector('.scroll').getBoundingClientRect().top;
+  });
+  assert.ok(offset >= 0 && offset < 60, `heading is ${offset}px from the top`);
+  assert.equal(await page.evaluate(() => window.host.posted.some((m) => m.type === 'openLink')), false);
+  await page.close();
+});
+
 await test('an external change resets the editor', async () => {
   const page = await open('Old text\n');
   await page.evaluate(() => {

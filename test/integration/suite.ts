@@ -127,6 +127,19 @@ const tests: Array<[string, () => Promise<void>]> = [
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   }],
 
+  ['a /rooted link opens the file under the workspace folder', async () => {
+    const uri = file('sample.md');
+    await vscode.commands.executeCommand('vscode.openWith', uri, 'margin.editor');
+    await until(() => activeTabInput() instanceof vscode.TabInputCustom, 'Margin tab');
+    await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'openLink', href: '/docs/callouts.md#top' });
+    const isCallouts = () => {
+      const input = activeTabInput();
+      return input instanceof vscode.TabInputText && input.uri.fsPath === file('callouts.md').fsPath;
+    };
+    await until(isCallouts, 'callouts.md opened from /docs/callouts.md');
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  }],
+
   ['DocumentSync applies an edit and acks the new version', async () => {
     const doc = await vscode.workspace.openTextDocument(file('callouts.md'));
     const posted: HostToWebview[] = [];

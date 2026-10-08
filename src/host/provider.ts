@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { isWebviewMessage, type HostToWebview, type Mode, type WebviewToHost } from '../bridge/messages';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
+import { linkTarget } from './links';
 import { SerialQueue } from './queue';
 import { DocumentSync } from './sync';
 import { webviewHtml } from './webviewHtml';
@@ -170,13 +171,15 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
 }
 
 async function openLink(document: vscode.TextDocument, href: string): Promise<void> {
-  if (/^(https?|mailto):/i.test(href)) {
-    await vscode.env.openExternal(vscode.Uri.parse(href));
+  const target = linkTarget(href);
+  if (target.kind === 'external') {
+    await vscode.env.openExternal(vscode.Uri.parse(target.href));
     return;
   }
-  if (href.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(href)) return;
-  const [file] = href.split('#');
-  if (!file) return;
-  const target = vscode.Uri.joinPath(document.uri, '..', decodeURIComponent(file));
-  await vscode.commands.executeCommand('vscode.open', target);
+  if (target.kind !== 'file') return;
+  // `/docs/a.md` is relative to the workspace folder (like on GitHub, where it's the repository root).
+  const root = target.rooted
+    ? vscode.workspace.getWorkspaceFolder(document.uri)?.uri ?? vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.joinPath(document.uri, '..')
+    : vscode.Uri.joinPath(document.uri, '..');
+  await vscode.commands.executeCommand('vscode.open', vscode.Uri.joinPath(root, target.path));
 }

@@ -10,6 +10,7 @@ import { tableEditing } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
 import type { HostToWebview, Mode, WebviewToHost } from '../bridge/messages';
 import { activeState, clickTask, insertBlock, setBlock, toggleInline, type BlockType, type InsertKind, type MarkName } from './editor/commands';
+import { findAnchor } from './editor/anchors';
 import { uniqueIds } from './editor/ids';
 import { editorKeymaps } from './editor/keymap';
 import { DocModel } from './editor/model';
@@ -390,11 +391,21 @@ class App implements AppApi {
     const a = target.closest('a');
     if (a && (this.mode !== 'edit' || e.ctrlKey || e.metaKey)) {
       const href = a.getAttribute('href');
-      if (href) post({ type: 'openLink', href });
+      if (href?.startsWith('#')) this.scrollToAnchor(href.slice(1));
+      else if (href) post({ type: 'openLink', href });
       e.preventDefault();
       return true;
     }
     return false;
+  }
+
+  /** `#fragment` links scroll to the heading with that GitHub id. */
+  private scrollToAnchor(fragment: string): void {
+    const pos = findAnchor(this.view.state.doc, fragment);
+    const dom = pos === null ? null : this.view.nodeDOM(pos);
+    if (!(dom instanceof HTMLElement)) return;
+    const top = this.scroll.scrollTop + dom.getBoundingClientRect().top - this.scroll.getBoundingClientRect().top - 16;
+    this.scroll.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
 
   private globalKey(e: KeyboardEvent): void {
