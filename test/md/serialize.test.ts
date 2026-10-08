@@ -40,6 +40,26 @@ describe('serializeBlock', () => {
     expect(/(?<!\r)\n/.test(out)).toBe(false);
   });
 
+  it('CRLF file with a multi-line fenced code block first has clean line endings', () => {
+    const out = again('```\r\nx\r\ny\r\n```\r\n');
+    expect(out).toBe('```\r\nx\r\ny\r\n```');
+    expect(out.includes('\r\r')).toBe(false);
+    expect(/(?<!\r)\n/.test(out)).toBe(false);
+  });
+
+  it('CRLF file with a multi-line paragraph first has clean line endings', () => {
+    const out = again('first\r\nsecond\r\nthird\r\n\r\n- a\r\n');
+    expect(out).toBe('first\r\nsecond\r\nthird');
+    expect(out.includes('\r\r')).toBe(false);
+    expect(/(?<!\r)\n/.test(out)).toBe(false);
+  });
+
+  it('LF file never gets CR from node values', () => {
+    const d = parseMarkdown('```\nx\n```\n');
+    const node = { type: 'code', lang: null, meta: null, value: 'x\r\ny' } as never;
+    expect(serializeBlock(node, d.conventions)).toBe('```\nx\ny\n```');
+  });
+
   it.each([
     '# Heading',
     'Para with **bold**, *em*, ~~del~~, `code`, [link](https://x.y) and ==mark==.',
