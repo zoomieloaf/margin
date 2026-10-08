@@ -3,7 +3,7 @@ import { nodeKey } from './key';
 import { kindOf } from './parse';
 import { serializeBlock } from './serialize';
 import type { MdDocument, SourceBlock } from './types';
-import { renderBlocks } from './write';
+import { markerOf, renderBlocks } from './write';
 
 const separator = (doc: MdDocument) => doc.conventions.eol + doc.conventions.eol;
 
@@ -58,7 +58,29 @@ export function removeBlock(doc: MdDocument, id: string): MdDocument {
   const blocks = doc.blocks.slice();
   const [gone] = blocks.splice(i, 1);
   if (i === 0 && blocks.length) blocks[0] = { ...blocks[0]!, gapBefore: gone!.gapBefore };
-  return { ...doc, blocks };
+  return guardListMerge({ ...doc, blocks }, i);
+}
+
+const untouchedList = (b: SourceBlock | undefined): b is SourceBlock =>
+  b !== undefined && b.data.type === 'list' && !b.dirty && b.original !== null;
+
+/**
+ * Two untouched lists of the same kind and marker that become neighbours (after a removal or
+ * a move) would merge into one list on re-parse. Marking the later one dirty lets the writer
+ * give it a different marker.
+ */
+function guardListMerge(doc: MdDocument, ...indices: number[]): MdDocument {
+  let blocks = doc.blocks;
+  for (const i of indices) {
+    const prev = blocks[i - 1];
+    const cur = blocks[i];
+    if (!untouchedList(prev) || !untouchedList(cur)) continue;
+    const sameKind = (prev.data as { ordered?: boolean | null }).ordered === (cur.data as { ordered?: boolean | null }).ordered;
+    if (!sameKind || markerOf(prev.original!) !== markerOf(cur.original!)) continue;
+    blocks = blocks.slice();
+    blocks[i] = { ...cur, dirty: true };
+  }
+  return blocks === doc.blocks ? doc : { ...doc, blocks };
 }
 
 export function moveBlock(doc: MdDocument, id: string, toIndex: number): MdDocument {
@@ -66,7 +88,8 @@ export function moveBlock(doc: MdDocument, id: string, toIndex: number): MdDocum
   if (i < 0) return doc;
   if (i === 0 && hasFrontmatter(doc)) return doc;
   const without = removeBlock(doc, id);
-  return place(without, doc.blocks[i]!, clamp(without, toIndex));
+  const to = clamp(without, toIndex);
+  return guardListMerge(place(without, doc.blocks[i]!, to), to, to + 1);
 }
 
 /** Makes the written text the new baseline: originals, keys and gaps become exactly what writeMarkdown emits. */

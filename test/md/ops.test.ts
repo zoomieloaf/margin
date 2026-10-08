@@ -266,3 +266,29 @@ describe('commit', () => {
     expectReparseStable(done);
   });
 });
+
+describe('clean lists that become neighbours', () => {
+  it('removing the block between two same-marker lists keeps them two lists', () => {
+    const src = '- a\n\nB\n\n- c\n';
+    const doc = parseMarkdown(src);
+    const next = removeBlock(doc, doc.blocks[1]!.id);
+    const text = writeMarkdown(next);
+    expect(parseMarkdown(text).blocks.filter((b) => b.kind === 'list')).toHaveLength(2);
+    expect(text.startsWith('- a\n\n')).toBe(true);
+    expectReparseStable(next);
+  });
+
+  it('moving a list next to a same-marker list keeps them two lists', () => {
+    const src = '1. one\n\nP\n\n1. two\n';
+    const doc = parseMarkdown(src);
+    const moved = moveBlock(doc, doc.blocks[2]!.id, 1);
+    expect(parseMarkdown(writeMarkdown(moved)).blocks.filter((b) => b.kind === 'list')).toHaveLength(2);
+    expectReparseStable(moved);
+  });
+
+  it('leaves lists with different markers untouched', () => {
+    const src = '- a\n\nB\n\n* c\n';
+    const doc = parseMarkdown(src);
+    expect(writeMarkdown(removeBlock(doc, doc.blocks[1]!.id))).toBe('- a\n\n* c\n');
+  });
+});

@@ -22,7 +22,7 @@ export interface RenderedBlock {
 const touched = (b: SourceBlock) => b.dirty || b.original === null;
 const lineBreaks = (s: string) => s.match(/\r\n|\r|\n/g)?.length ?? 0;
 const isList = (b: SourceBlock | undefined): b is SourceBlock & { data: List } => b?.data.type === 'list';
-const markerOf = (text: string): string | null => {
+export const markerOf = (text: string): string | null => {
   const m = LIST_MARKER.exec(text);
   return m ? (m[1] ?? m[2] ?? null) : null;
 };
