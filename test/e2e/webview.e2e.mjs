@@ -394,6 +394,27 @@ await test('Markdown mode: Ctrl+Z sends the pending edit, then one undo to VS Co
   await page.close();
 });
 
+await test('Russian layout: Ctrl+Z (key "я") undoes once in Markdown mode, Ctrl+E (key "у") toggles Preview', async () => {
+  const page = await open('# A\n\nB\n');
+  await typeAtEndOfSource(page, 'x');
+  const press = (key, code, keyCode) =>
+    page.evaluate((key, code, keyCode) => {
+      const t = document.activeElement ?? document.body;
+      t.dispatchEvent(new KeyboardEvent('keydown', { key, code, keyCode, ctrlKey: true, bubbles: true, cancelable: true }));
+    }, key, code, keyCode);
+  await press('я', 'KeyZ', 90);
+  await sleep(300);
+  const posted = await page.evaluate(() => window.host.posted.map((m) => m.type).filter((t) => t === 'edit' || t === 'undo'));
+  assert.deepEqual(posted, ['edit', 'undo']);
+  await page.evaluate(() => window.postMessage({ type: 'setMode', mode: 'preview' }, '*'));
+  await sleep(100);
+  assert.equal(await page.$eval('.app', (e) => e.dataset.mode), 'preview');
+  await press('у', 'KeyE', 69);
+  await sleep(100);
+  assert.equal(await page.$eval('.app', (e) => e.dataset.mode), 'edit');
+  await page.close();
+});
+
 await test('Markdown mode: a reset replaces the textarea when nothing is unsent', async () => {
   const page = await open('# A\n\nB\n');
   await page.click('[data-mode="source"]');

@@ -24,6 +24,7 @@ import { Handles } from './ui/handles';
 import { Menu } from './ui/menu';
 import { docStats, Outline } from './ui/outline';
 import { Slash } from './ui/slash';
+import { shortcutKey } from './ui/shortcut';
 import { Toolbar } from './ui/toolbar';
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(s: unknown): void; getState(): unknown };
@@ -413,8 +414,14 @@ class App implements AppApi {
 
   private globalKey(e: KeyboardEvent): void {
     const mod = e.ctrlKey || e.metaKey;
-    const k = e.key.toLowerCase();
-    const inInput = e.target instanceof HTMLInputElement; // the link field keeps its own undo
+    const k = shortcutKey(e);
+    const inInput = e.target instanceof HTMLInputElement;
+    if (mod && !e.altKey && inInput && (k === 'z' || k === 'y')) {
+      // VS Code's webview swallows Ctrl+Z / Ctrl+Y, so the link field runs its own undo.
+      e.preventDefault();
+      document.execCommand(k === 'y' || e.shiftKey ? 'redo' : 'undo');
+      return;
+    }
     if (mod && !e.altKey && !inInput && (k === 'z' || (k === 'y' && !e.shiftKey))) {
       // Everywhere in the webview (document, Markdown textarea, toolbar): VS Code's history.
       // preventDefault also keeps ProseMirror's keymap from seeing the key a second time.
@@ -458,3 +465,4 @@ class App implements AppApi {
 }
 
 new App(document.getElementById('app')!);
+
