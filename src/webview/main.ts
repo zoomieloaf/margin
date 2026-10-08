@@ -8,7 +8,7 @@ import { DOMSerializer, type Node as PmNode } from 'prosemirror-model';
 import { EditorState, Selection, TextSelection, type Transaction } from 'prosemirror-state';
 import { tableEditing } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
-import { MAX_CHECKED_LINKS, type HostToWebview, type Mode, type WebviewToHost } from '../bridge/messages';
+import { MAX_CHECKED_LINKS, type AiAction, type AiSetting, type HostToWebview, type Mode, type WebviewToHost } from '../bridge/messages';
 import { activeState, clickTask, insertBlock, setBlock, toggleInline, type BlockType, type InsertKind, type MarkName } from './editor/commands';
 import { findAnchor } from './editor/anchors';
 import { uniqueIds } from './editor/ids';
@@ -17,13 +17,14 @@ import { linkStatusKey, linkStatusPlugin, localLinks, type LinkStatus } from './
 import { markdownTextParser } from './editor/paste';
 import { DocModel } from './editor/model';
 import { schema } from './editor/schema';
+import { AiAssist } from './ui/aibox';
 import type { AppApi } from './ui/api';
 import { Bubble } from './ui/bubble';
-import { AI, BLOCKS, EXPORTS } from './ui/catalog';
+import { aiGroups, BLOCKS, EXPORTS, translateGroups } from './ui/catalog';
 import { installTooltips, toast } from './ui/feedback';
 import { Handles } from './ui/handles';
 import { LinkCard, type LinkCardHost } from './ui/linkcard';
-import { Menu } from './ui/menu';
+import { Menu, type Rect } from './ui/menu';
 import { docStats, Outline } from './ui/outline';
 import { Slash } from './ui/slash';
 import { shortcutKey } from './ui/shortcut';
@@ -55,6 +56,7 @@ class App implements AppApi, LinkCardHost {
   private readonly slash: Slash;
   private readonly outline: Outline;
   private readonly linkCard: LinkCard;
+  private readonly ai: AiAssist;
   private linkStatus: LinkStatus = { missing: new Set(), paths: new Map() };
   private linkTimer: number | undefined;
   /** The local links last sent to the host, one per line. */
@@ -73,6 +75,7 @@ class App implements AppApi, LinkCardHost {
     this.menu = new Menu(document.body);
     this.toolbar = new Toolbar(this);
     this.slash = new Slash(this);
+    this.ai = new AiAssist({ view: () => this.view, post, flush: () => this.flushNow() });
 
     const body = document.createElement('div');
     body.className = 'editor-body';
@@ -177,6 +180,7 @@ class App implements AppApi, LinkCardHost {
       plugins: [
         uniqueIds(this.model.newId),
         this.slash.plugin(),
+        this.ai.plugin(),
         ...editorKeymaps({
           undo: () => this.history('undo'),
           redo: () => this.history('redo'),
@@ -282,6 +286,7 @@ class App implements AppApi, LinkCardHost {
     switch (m.type) {
       case 'init':
         this.baseUri = m.baseUri;
+        this.configureAi(m.settings.ai ?? 'auto', m.settings.aiEditor ?? false);
         this.outline.visible = m.settings.outlineVisible && innerWidth >= 900;
         this.load(this.model.load(m.text, m.version), false);
         this.setMode(m.mode);
@@ -296,6 +301,8 @@ class App implements AppApi, LinkCardHost {
         this.model.ack(m.version, m.seq);
         break;
       case 'reset': {
+        // The suggestion's range may no longer exist: close it (the file was not changed by it).
+        this.ai.discard();
         // Markdown mode: the file's text wins over textarea edits not yet sent (the safer
         // choice: re-applying them could silently undo the change that caused the reset).
         const unsent = this.mode === 'source' && (this.sourceTimer !== undefined || this.model.busy);
@@ -317,6 +324,21 @@ class App implements AppApi, LinkCardHost {
         // A decoration update only: no document change, so nothing is sent to the file.
         this.view.dispatch(this.view.state.tr.setMeta(linkStatusKey, true));
         break;
+      case 'aiChunk':
+        this.ai.chunk(m.id, m.text);
+        break;
+      case 'aiDone':
+        this.ai.done(m.id);
+        break;
+      case 'aiError':
+        this.ai.error(m.id, m.message);
+        break;
+      case 'aiFallback':
+        this.ai.fallback(m.id);
+        break;
+      case 'aiAvailable':
+        this.configureAi(m.setting ?? this.ai.setting, m.editor);
+        break;
     }
   }
 
@@ -325,6 +347,7 @@ class App implements AppApi, LinkCardHost {
   setMode(mode: Mode): void {
     if (mode === this.mode && this.root.dataset.mode) return;
     const leaving = this.mode;
+    this.ai.discard();
     if (leaving === 'source' && mode !== 'source') {
       this.flushNow(); // still in source mode here: sends the textarea
       const doc = this.model.leaveSource();
@@ -389,10 +412,35 @@ class App implements AppApi, LinkCardHost {
         this.menu.open(at, EXPORTS, (id) => this.exportAction(id), { rich: true, anchor });
         return;
       case 'ai':
-        this.menu.open(at, AI, () => toast('AI actions are planned for a later release', 'They will use the AI model already set up in VS Code or Cursor'), { anchor });
+        if (this.mode !== 'edit' || !this.ai.enabled) return;
+        this.menu.open(at, aiGroups({ selection: !view.state.selection.empty, editor: this.ai.inPlace }), (id) => this.aiPick(id as AiAction, at), { anchor });
+        return;
+      case 'ai-run':
+        if (arg && this.mode === 'edit') this.aiStart(arg as AiAction);
         return;
     }
     if (this.mode === 'edit') view.focus();
+  }
+
+  get aiEnabled(): boolean {
+    return this.ai.enabled;
+  }
+
+  /** The margin.ai setting and whether the editor has a model; `off` hides every AI entry point (CSS on body[data-ai]). */
+  private configureAi(setting: AiSetting, editorModel: boolean): void {
+    this.ai.configure(setting, editorModel);
+    document.body.dataset.ai = this.ai.enabled ? (this.ai.inPlace ? 'editor' : 'chat') : 'off';
+  }
+
+  private aiPick(action: AiAction, at: Rect): void {
+    if (action !== 'translate') return this.aiStart(action);
+    // Translate to… opens the languages; Other… asks for one in the suggestion box.
+    this.menu.open(at, translateGroups(), (id) => this.aiStart('translate', id === 'lang:' ? {} : { lang: id.slice('lang:'.length) }));
+  }
+
+  private aiStart(action: AiAction, opts: { lang?: string; instruction?: string } = {}): void {
+    this.bubble.dismiss();
+    this.ai.start(action, opts);
   }
 
   private caretRect() {
@@ -534,6 +582,11 @@ class App implements AppApi, LinkCardHost {
       this.setMode(this.mode === 'edit' ? 'preview' : 'edit');
     } else if (this.menu.isOpen && !this.slash.isOpen && this.menu.handleKey(e)) {
       e.stopPropagation();
+    } else if (e.key === 'Escape' && this.ai.isOpen) {
+      // Esc discards the AI suggestion (before ProseMirror or the bubble see the key).
+      e.preventDefault();
+      e.stopPropagation();
+      this.ai.discard(true);
     }
   }
 

@@ -1,3 +1,4 @@
+import type { AiAction } from '../../bridge/messages';
 import type { BlockType, InsertKind, TableActionId } from '../editor/commands';
 
 export interface MenuItem {
@@ -53,17 +54,38 @@ export const EXPORTS: MenuGroup[] = [
   },
 ];
 
-export const AI: MenuGroup[] = [
-  {
-    title: 'AI on selection',
-    items: [
-      { id: 'improve', label: 'Improve writing', icon: 'sparkles', badge: 'Soon' },
-      { id: 'shorter', label: 'Make shorter', icon: 'shorten', badge: 'Soon' },
-      { id: 'grammar', label: 'Fix spelling and grammar', icon: 'spell', badge: 'Soon' },
-      { id: 'translate', label: 'Translate', icon: 'translate', badge: 'Soon' },
-    ],
-  },
+/** The AI actions that rewrite the selection, in menu order (ids are the bridge's AiAction). */
+const AI_EDIT: Array<MenuItem & { id: AiAction }> = [
+  { id: 'improve', label: 'Improve writing', icon: 'sparkles' },
+  { id: 'shorten', label: 'Shorten', icon: 'shorten' },
+  { id: 'longer', label: 'Make longer', icon: 'lengthen' },
+  { id: 'grammar', label: 'Fix spelling & grammar', icon: 'spell' },
+  { id: 'translate', label: 'Translate to…', icon: 'translate' },
+  { id: 'summarize', label: 'Summarize', icon: 'list' },
 ];
+
+/** The AI actions that write new text (they also work with nothing selected). */
+const AI_WRITE: Array<MenuItem & { id: AiAction }> = [
+  { id: 'continue', label: 'Continue writing', icon: 'pencil', desc: 'AI writes what comes next', keys: 'ai' },
+  { id: 'ask', label: 'Ask AI…', icon: 'sparkles', desc: 'Tell AI what to write', keys: 'ai' },
+];
+
+/**
+ * The AI menu. `selection`: text is selected (otherwise only the writing actions apply).
+ * `editor`: the editor's model answers in place; otherwise each action opens a chat.
+ */
+export function aiGroups({ selection, editor }: { selection: boolean; editor: boolean }): MenuGroup[] {
+  const chat = editor ? '' : ' · opens a chat';
+  const write = { title: `Write with AI${selection ? '' : chat}`, items: AI_WRITE };
+  return selection ? [{ title: `Edit with AI${chat}`, items: AI_EDIT }, write] : [write];
+}
+
+export const AI_LANGUAGES = ['English', 'Russian', 'German', 'French', 'Spanish', 'Chinese', 'Japanese'];
+
+/** The Translate to… submenu: item ids are `lang:<Language>`, and `lang:` for Other…. */
+export function translateGroups(): MenuGroup[] {
+  return [{ title: 'Translate to', items: [...AI_LANGUAGES.map((l) => ({ id: `lang:${l}`, label: l })), { id: 'lang:', label: 'Other…' }] }];
+}
 
 export const BLOCK_ACTIONS: MenuGroup = {
   items: [
@@ -88,12 +110,16 @@ export function blockMenuGroups(nodeType: string): MenuGroup[] {
     : [{ title: 'Turn into', items: BLOCKS }, BLOCK_ACTIONS];
 }
 
-/** Slash-menu groups filtered by what the user typed after `/`. */
-export function slashGroups(query: string): MenuGroup[] {
+/** Slash-menu groups filtered by what the user typed after `/`. `ai`: AI actions are on (slash ids `ai:<action>`). */
+export function slashGroups(query: string, ai = false): MenuGroup[] {
   const q = query.toLowerCase();
   const match = (it: MenuItem) => !q || `${it.label} ${it.keys ?? ''} ${it.id}`.toLowerCase().includes(q);
-  return [
+  const groups = [
     { title: 'Basic blocks', items: BLOCKS.filter(match) },
     { title: 'Insert', items: INSERTS.filter(match) },
   ];
+  if (!ai) return groups;
+  const aiGroup = { title: 'AI', items: AI_WRITE.filter(match).map((it) => ({ ...it, id: `ai:${it.id}` })) };
+  // `/ai` also matches "plain" and "mermaid": the AI items come first so Enter runs Continue writing.
+  return q.startsWith('ai') ? [aiGroup, ...groups] : [...groups, aiGroup];
 }

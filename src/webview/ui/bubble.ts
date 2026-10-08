@@ -29,8 +29,8 @@ export class Bubble {
         <span class="bsep"></span>
         ${b('strong', 'bold', 'Bold', 'Ctrl+B')}${b('em', 'italic', 'Italic', 'Ctrl+I')}${b('strike', 'strike', 'Strikethrough', 'Ctrl+Shift+X')}
         ${b('code', 'code', 'Inline code', 'Ctrl+`')}${b('mark', 'highlight', 'Highlight', 'Ctrl+Shift+H')}${b('link', 'link', 'Link', 'Ctrl+K')}
-        <span class="bsep"></span>
-        <button type="button" class="bb ai" data-act="ai" aria-haspopup="menu">${icon('sparkles')}Ask AI</button>
+        <span class="bsep ai-sep"></span>
+        <button type="button" class="bb ai" data-act="ai" aria-haspopup="menu" data-tip="AI actions">${icon('sparkles')}AI</button>
       </div>
       <form class="row linkrow" hidden>
         <input type="text" placeholder="Paste or type a link" aria-label="Link address" autocomplete="off">

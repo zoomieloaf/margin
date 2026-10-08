@@ -51,7 +51,7 @@ export class Slash {
     if (this.start === null) return;
     const query = this.query(view);
     if (query === null) this.close();
-    else this.app.menu.update(slashGroups(query));
+    else this.app.menu.update(slashGroups(query, this.app.aiEnabled));
   }
 
   handleKey(e: KeyboardEvent): boolean {
@@ -76,7 +76,7 @@ export class Slash {
     let picked: number | null = at;
     const track = () => (picked = this.start ?? picked);
     this.tracker = track;
-    this.app.menu.open({ left: c.left, top: c.top, bottom: c.bottom }, slashGroups(''), (id) => this.pick(id, picked), {
+    this.app.menu.open({ left: c.left, top: c.top, bottom: c.bottom }, slashGroups('', this.app.aiEnabled), (id) => this.pick(id, picked), {
       rich: true,
       highlightFirst: true,
       onClose: () => {
@@ -98,6 +98,8 @@ export class Slash {
       const head = view.state.selection.head;
       if (head > start) view.dispatch(view.state.tr.delete(start, head));
     }
+    // `/ai`: Continue writing or Ask AI at the cursor.
+    if (id.startsWith('ai:')) return this.app.act('ai-run', undefined, id.slice(3));
     const isBlock = BLOCKS.some((b) => b.id === id);
     this.app.act(isBlock ? 'block' : 'insert', undefined, id);
   }

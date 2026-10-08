@@ -33,6 +33,11 @@ const P: Record<string, string> = {
   globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
   diagram: '<rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/><path d="M6.5 10v4a2 2 0 0 0 2 2H14"/>',
   shorten: '<path d="M4 7h16M4 12h10M4 17h6"/>',
+  lengthen: '<path d="M4 6h16M4 11h16M4 16h16M4 21h9"/>',
+  stop: '<rect x="6" y="6" width="12" height="12" rx="2"/>',
+  refresh: '<path d="M20 11a8 8 0 0 0-14.7-4.4L4 8M4 4v4h4M4 13a8 8 0 0 0 14.7 4.4L20 16M20 20v-4h-4"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  below: '<path d="M4 5h16M4 10h16M12 14v7M8.5 17.5 12 21l3.5-3.5"/>',
   spell: '<path d="m3 16 4-10 4 10M4.5 12.5h5"/><path d="m13 15 2.5 2.5L21 12"/>',
   translate: '<path d="M4 5h8M8 3v2M5 9c1.5 3 4 5 7 6M11 5c-1 4-3.5 7-7 9"/><path d="m13 21 4-9 4 9M14.5 18h5"/>',
 };

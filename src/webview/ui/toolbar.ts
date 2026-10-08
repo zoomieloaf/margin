@@ -39,6 +39,8 @@ const TEMPLATE = `
   ${blockBtn('code', 'codeblock', 'Code block')}
   ${btn('insert', 'table', 'Table', '', 'data-insert="table"')}
   ${btn('insert', 'minus', 'Divider', '', 'data-insert="hr"')}
+  <span class="vsep ai-sep"></span>
+  <button type="button" class="tb ai" data-act="ai" aria-haspopup="menu" data-tip="AI actions">${icon('sparkles')}<span>AI</span>${icon('chev', 'chev')}</button>
 </div>
 <div class="tb-spacer"></div>
 ${btn('outline', 'panel', 'Outline', '', 'aria-pressed="false"')}
