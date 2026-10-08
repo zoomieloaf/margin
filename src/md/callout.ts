@@ -21,6 +21,7 @@ function toCallout(bq: Blockquote): Callout | null {
   return {
     type: 'callout',
     kind: m[1]!.toLowerCase() as CalloutKind,
+    label: m[1]!,
     children: body ? [body, ...bq.children.slice(1)] : bq.children.slice(1),
     position: bq.position,
   };
@@ -33,6 +34,7 @@ export function calloutHandler(node: Callout, _parent: Parents | undefined, stat
   tracker.shift(2);
   const body = state.containerFlow(node as unknown as Blockquote, tracker.current());
   exit();
-  const head = `[!${node.kind.toUpperCase()}]`;
+  const label = node.label?.toLowerCase() === node.kind ? node.label : node.kind.toUpperCase();
+  const head = `[!${label}]`;
   return state.indentLines(body ? `${head}\n${body}` : head, (line, _i, blank) => '>' + (blank ? '' : ' ') + line);
 }

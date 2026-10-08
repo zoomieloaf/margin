@@ -30,6 +30,18 @@ describe('serializeBlock', () => {
     expect(again('A ==big== deal\n')).toBe('A ==big== deal');
   });
 
+  it('keeps the as-written callout marker case', () => {
+    expect(again('> [!note]\n> x\n')).toBe('> [!note]\n> x');
+    expect(again('> [!Warning]\n> x\n')).toBe('> [!Warning]\n> x');
+  });
+
+  it('writes new callouts, or callouts whose kind changed, in uppercase', () => {
+    const c = parseMarkdown('x\n').conventions;
+    const body = [{ type: 'paragraph', children: [{ type: 'text', value: 'x' }] }];
+    expect(serializeBlock({ type: 'callout', kind: 'tip', children: body } as never, c)).toBe('> [!TIP]\n> x');
+    expect(serializeBlock({ type: 'callout', kind: 'tip', label: 'note', children: body } as never, c)).toBe('> [!TIP]\n> x');
+  });
+
   it('follows the fence marker', () => {
     expect(again('~~~js\nx\n~~~\n')).toBe('~~~js\nx\n~~~');
   });

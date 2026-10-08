@@ -15,6 +15,8 @@ export interface Mark extends Parent {
 export interface Callout extends Parent {
   type: 'callout';
   kind: CalloutKind;
+  /** The kind as written in the source (e.g. `note`, `Tip`), reused when serializing; new callouts are written in uppercase. */
+  label?: string;
   children: Array<BlockContent | DefinitionContent>;
 }
 

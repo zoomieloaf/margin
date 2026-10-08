@@ -17,6 +17,7 @@ describe('callouts', () => {
   it('accepts lowercase kinds and text on the marker line', () => {
     const c = first('> [!note] Same line\n').data as Callout;
     expect(c.kind).toBe('note');
+    expect(c.label).toBe('note');
     expect((c.children[0] as Paragraph).children[0]).toMatchObject({ value: 'Same line' });
   });
 
