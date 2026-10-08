@@ -1,10 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as vscode from 'vscode';
-import { findBrowser } from './browser';
-import { printToPdf } from './pdf';
+import { findBrowser, missingBrowserMessage } from './browser';
+import { makePdfWorkDir, pdfWorkParent, printToPdf, removeWorkDir } from './pdf';
 import { renderHtml, type ExportTheme } from './render';
 
 function exportTheme(): ExportTheme {
@@ -54,15 +54,11 @@ export async function exportHtml(document: vscode.TextDocument): Promise<string>
 
 export async function exportPdf(document: vscode.TextDocument): Promise<string | undefined> {
   const config = vscode.workspace.getConfiguration('margin');
-  const browser = findBrowser({
-    platform: process.platform,
-    env: process.env,
-    exists: (p) => existsSync(p),
-    override: config.get<string>('export.browserPath', '').trim() || undefined,
-  });
+  const override = config.get<string>('export.browserPath', '').trim() || undefined;
+  const browser = findBrowser({ platform: process.platform, env: process.env, exists: (p) => existsSync(p), override });
   if (!browser) {
     const choice = await vscode.window.showErrorMessage(
-      'No Chrome or Edge found. Set margin.export.browserPath or export HTML instead.',
+      missingBrowserMessage(override),
       'Open setting',
       'Export HTML',
     );
@@ -74,7 +70,8 @@ export async function exportPdf(document: vscode.TextDocument): Promise<string |
   const dir = outputDir(document);
   mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${baseName(document)}.pdf`);
-  const work = mkdtempSync(path.join(tmpdir(), 'margin-export-'));
+  // Snap/Flatpak Chromium can't read /tmp, so on Linux this sits next to the output (see pdfWorkParent).
+  const work = makePdfWorkDir(pdfWorkParent(process.platform, dir, homedir(), tmpdir()));
   try {
     const htmlFile = path.join(work, 'document.html');
     writeFileSync(htmlFile, renderHtml(document.getText(), { title: baseName(document), theme: exportTheme(), baseHref: sourceDirHref(document) }), 'utf8');
@@ -86,7 +83,7 @@ export async function exportPdf(document: vscode.TextDocument): Promise<string |
     void vscode.window.showErrorMessage(`PDF export failed: ${(err as Error).message}`);
     return undefined;
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    removeWorkDir(work);
   }
   void announce(file);
   return file;

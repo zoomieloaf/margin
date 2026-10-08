@@ -49,6 +49,13 @@ export function browserCandidates(platform: NodeJS.Platform, env: Record<string,
   ];
 }
 
+/** What to tell the user when no browser was found (`override`: the margin.export.browserPath setting). */
+export function missingBrowserMessage(override: string | undefined): string {
+  return override
+    ? `margin.export.browserPath points to a file that doesn't exist: ${override}`
+    : 'No Chrome or Edge found. Set margin.export.browserPath or export HTML instead.';
+}
+
 export function findBrowser(o: FindBrowserOptions): string | null {
   if (o.override) return o.exists(o.override) ? o.override : null;
   return browserCandidates(o.platform, o.env).find((p) => o.exists(p)) ?? null;

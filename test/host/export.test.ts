@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { browserCandidates, findBrowser } from '../../src/host/export/browser';
-import { pdfArgs } from '../../src/host/export/pdf';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { browserCandidates, findBrowser, missingBrowserMessage } from '../../src/host/export/browser';
+import { pdfArgs, pdfWorkParent, printToPdf, removeStalePdf } from '../../src/host/export/pdf';
 import { renderHtml } from '../../src/host/export/render';
 
 describe('findBrowser', () => {
@@ -68,5 +71,50 @@ describe('renderHtml', () => {
   it('switches palettes with the theme', () => {
     expect(renderHtml('a', { title: 't', theme: 'dark' })).toContain('#1f2024');
     expect(html).toContain('#ffffff');
+  });
+});
+
+describe('PDF export does not report an old file as success', () => {
+  const dir = () => mkdtempSync(join(tmpdir(), 'margin-test-'));
+
+  it('deletes the previous PDF before printing, so a browser that writes nothing is an error', async () => {
+    const d = dir();
+    const out = join(d, 'doc.pdf');
+    const html = join(d, 'doc.html');
+    writeFileSync(out, '%PDF- old export');
+    writeFileSync(html, '<p>x</p>');
+    // Node stands in for a browser that exits without printing.
+    await expect(printToPdf(process.execPath, html, out, 20_000)).rejects.toThrow(/without writing doc\.pdf/);
+    expect(existsSync(out)).toBe(false);
+    rmSync(d, { recursive: true, force: true });
+  });
+
+  it('says to close the PDF when the old file is locked', () => {
+    const busy = Object.assign(new Error('EBUSY: resource busy or locked'), { code: 'EBUSY' });
+    expect(() => removeStalePdf('/x/doc.pdf', () => { throw busy; })).toThrow(/doc\.pdf is open in another program\. Close the PDF and try again\./);
+    const missing = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    expect(() => removeStalePdf('/x/doc.pdf', () => { throw missing; })).not.toThrow();
+  });
+});
+
+describe('PDF working folder', () => {
+  it('is under the output folder on Linux (Snap Chromium cannot read /tmp), hidden unless that is $HOME', () => {
+    expect(pdfWorkParent('linux', '/home/u/docs', '/home/u', '/tmp')).toEqual({ dir: '/home/u/docs', prefix: '.margin-pdf-' });
+    expect(pdfWorkParent('linux', '/home/u', '/home/u', '/tmp')).toEqual({ dir: '/home/u', prefix: 'margin-pdf-' });
+  });
+
+  it('stays in the temp folder on Windows and macOS', () => {
+    expect(pdfWorkParent('win32', String.raw`C:\docs`, String.raw`C:\Users\me`, String.raw`C:\Temp`)).toEqual({ dir: String.raw`C:\Temp`, prefix: 'margin-pdf-' });
+    expect(pdfWorkParent('darwin', '/Users/u/docs', '/Users/u', '/var/tmp')).toEqual({ dir: '/var/tmp', prefix: 'margin-pdf-' });
+  });
+});
+
+describe('missing browser message', () => {
+  it('names the setting when margin.export.browserPath points nowhere', () => {
+    expect(missingBrowserMessage('/opt/chrome')).toBe("margin.export.browserPath points to a file that doesn't exist: /opt/chrome");
+  });
+
+  it('suggests the setting when nothing was found automatically', () => {
+    expect(missingBrowserMessage(undefined)).toBe('No Chrome or Edge found. Set margin.export.browserPath or export HTML instead.');
   });
 });
