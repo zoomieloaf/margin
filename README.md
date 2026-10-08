@@ -11,6 +11,9 @@ Margin opens your `.md` files as a clean, rendered document inside VS Code, Curs
 - **Markdown shortcuts while typing.** `#`, `##`, `-`, `1.`, `>`, `[]`, ```` ``` ```` and `---` each convert the line as you type.
 - **Block handles.** Hover a block, drag `⋮⋮` to move it, click it to duplicate, move or delete, or use `+` to add a block below.
 - **Tables.** Tab and Shift+Tab move between cells, and Tab in the last cell adds a row. Enter moves to the cell below and adds a row at the end. The block menu (`⋮⋮`) adds a row below or a column on the right, and deletes rows or columns.
+- **Links between your docs work like pages in a wiki.** Click a link to `./setup.md`, `../guides/` or `/docs/faq.md#install` and the page opens in Margin, in Preview, scrolled to that heading. A link to a folder opens its `README.md` or `index.md`. Alt+Left takes you back to the page you came from.
+- **Broken links are easy to spot.** A link to a file that doesn't exist gets a red wavy underline, and hovering any link to a file shows where it points. Click a broken link to a `.md` page and choose **Create page** to start it, with a title made from the file name.
+- **Click to open, in Edit mode too.** A click on a link opens it; dragging across a link still selects text. To change a link's text, click just after it or move there with the arrow keys. Hover a link while editing to get a small card with **Open**, **Edit link** and **Copy link**.
 - **Outline panel** with the current section, word count, reading time and task progress.
 - **GitHub callouts** (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) and to-do checkboxes you can click even in Preview.
 - **Export.** Export to **PDF** using the Edge or Chrome already on your machine, with nothing to download. Export to **HTML** as a single file. **Copy as rich text** for Slack, email or Confluence, or **copy as Markdown**.
@@ -40,6 +43,8 @@ Undo and redo use VS Code's own history, so Ctrl+Z works across Margin, the text
 | Highlight | Ctrl+Shift+H | Cmd+Shift+H |
 | Inline code | Ctrl+\` | Cmd+\` |
 | Link | Ctrl+K | Cmd+K |
+| Open a link (Preview and Edit) | Click or Ctrl+click | Click or Cmd+click |
+| Back to the previous page (VS Code's Go Back) | Alt+Left | Ctrl+- |
 | Line break inside a block | Shift+Enter | Shift+Enter |
 | Undo / redo (VS Code's history) | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z | Cmd+Z / Cmd+Shift+Z or Cmd+Y |
 | Indent / outdent list item | Tab / Shift+Tab | Tab / Shift+Tab |
