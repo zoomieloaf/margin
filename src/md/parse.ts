@@ -15,7 +15,7 @@ import type { BlockKind, MdDocument, SourceBlock } from './types';
 
 export function parseTree(src: string): Root {
   const tree = fromMarkdown(src, {
-    extensions: [gfm(), frontmatter(['yaml']), math()],
+    extensions: [gfm(), frontmatter(['yaml']), math({ singleDollarTextMath: false })],
     mdastExtensions: [gfmFromMarkdown(), frontmatterFromMarkdown(['yaml']), mathFromMarkdown()],
   });
   liftCallouts(tree);

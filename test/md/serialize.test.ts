@@ -84,11 +84,16 @@ describe('serializeBlock', () => {
   });
 
   it('keeps inline math unchanged when an edited paragraph is re-serialized', () => {
-    const src = 'Let $x_1 + \\alpha$ be *small*.';
+    const src = 'Let $$x_1 + \\alpha$$ be *small*.';
     const d = parseMarkdown(src + '\n');
     const p = d.blocks[0]!.data as { children: Array<{ type: string }> };
     expect(p.children.some((c) => c.type === 'inlineMath')).toBe(true);
     expect(serializeBlock(d.blocks[0]!.data, d.conventions)).toBe(src);
+  });
+
+  it('treats single dollar signs as text (prices, not math)', () => {
+    const p = parseMarkdown('Costs $5 and $10 today.\n').blocks[0]!.data as { children: Array<{ type: string }> };
+    expect(p.children.map((c) => c.type)).toEqual(['text']);
   });
 
   it.each([

@@ -19,7 +19,7 @@ export function markdownOptions(c: Conventions): Options {
     rule: c.rule,
     listItemIndent: 'one',
     incrementListMarker: true,
-    extensions: [gfmToMarkdown(), frontmatterToMarkdown(['yaml']), mathToMarkdown()],
+    extensions: [gfmToMarkdown(), frontmatterToMarkdown(['yaml']), mathToMarkdown({ singleDollarTextMath: false })],
     handlers: { callout: calloutHandler, mark: markHandler, text: textHandler } as unknown as Options['handlers'],
   };
 }

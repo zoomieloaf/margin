@@ -21,7 +21,7 @@ function toCallout(bq: Blockquote): Callout | null {
   return {
     type: 'callout',
     kind: m[1]!.toLowerCase() as CalloutKind,
-    label: m[1]!,
+    ...(m[1] !== m[1]!.toUpperCase() ? { label: m[1]! } : {}),
     children: body ? [body, ...bq.children.slice(1)] : bq.children.slice(1),
     position: bq.position,
   };
