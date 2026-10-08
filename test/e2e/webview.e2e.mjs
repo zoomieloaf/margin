@@ -29,13 +29,14 @@ const browser = await puppeteer.launch({ executablePath, headless: true, args: [
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 let failures = 0;
 
-async function open(text, mode = 'edit') {
+/** `settings`: `ai` (the margin.ai setting) and `aiEditor` (the editor has a model) for the init message. */
+async function open(text, mode = 'edit', settings = {}) {
   const page = await browser.newPage();
   await page.setViewport({ width: 1100, height: 800 });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.evaluateOnNewDocument((t, m) => { window.__initialText = t; window.__mode = m; }, text, mode);
+  await page.evaluateOnNewDocument((t, m, s) => { window.__initialText = t; window.__mode = m; window.__ai = s.ai; window.__aiEditor = s.aiEditor; }, text, mode, settings);
   await page.goto(harness);
   await page.waitForSelector('.ProseMirror');
   await page.waitForSelector('.app[data-mode]'); // the init message has been applied
@@ -644,6 +645,205 @@ await test('untouched file round-trips with no edit at all', async () => {
   const edits = await page.evaluate(() => window.host.posted.filter((m) => m.type === 'edit'));
   assert.deepEqual(edits, []);
   assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+// ---------------------------------------------------------------- AI suggestions
+
+const AI_DOC = 'Intro paragraph here.\n\nSecond  block   stays *as is*.\n';
+const posted = (page, type) => page.evaluate((type) => window.host.posted.filter((m) => m.type === type), type);
+const fromHost = (page, m) => page.evaluate((m) => window.postMessage(m, '*'), m);
+const boxOpen = (page) => page.evaluate(() => !!document.querySelector('.ProseMirror .ai-box'));
+
+/** Selects `length` characters from `offset` in the first paragraph, then runs `action` from the selection bubble's AI menu. */
+async function aiFromBubble(page, action, offset = 6, length = 14) {
+  await clickChar(page, '.ProseMirror p', 0, offset);
+  await page.keyboard.down('Shift');
+  for (let i = 0; i < length; i++) await page.keyboard.press('ArrowRight');
+  await page.keyboard.up('Shift');
+  await page.waitForSelector('.bubble:not([hidden]) [data-act="ai"]');
+  await page.click('.bubble [data-act="ai"]');
+  await page.waitForSelector('.menu:not([hidden])');
+  await page.click(`.menu .mi[data-id="${action}"]`);
+  await sleep(30);
+  return (await posted(page, 'ai')).at(-1);
+}
+
+await test('AI: the answer streams into a box below the selection; Accept makes exactly one edit', async () => {
+  const page = await open(AI_DOC);
+  const req = await aiFromBubble(page, 'improve');
+  assert.equal(req.action, 'improve');
+  assert.equal(req.markdown, 'paragraph here');
+  await fromHost(page, { type: 'aiChunk', id: req.id, text: 'text with ' });
+  await fromHost(page, { type: 'aiChunk', id: req.id, text: '**bold** words' });
+  await sleep(80);
+  assert.equal(await page.$eval('.ai-box .ai-out', (e) => e.textContent), 'text with bold words');
+  assert.equal(await page.$eval('.ai-box .ai-out strong', (e) => e.textContent), 'bold');
+  assert.equal(await page.$eval('.ai-range', (e) => e.textContent), 'paragraph here');
+  assert.equal(await page.$eval('[data-ai="accept"]', (b) => b.disabled), true, 'no Accept while streaming');
+  assert.equal(await page.$eval('[data-ai="stop"]', (b) => getComputedStyle(b).display !== 'none'), true, 'Stop while streaming');
+  // The box sits after the paragraph, before the next block, and is not part of the document.
+  assert.equal(await page.$eval('.ai-box', (b) => b.previousElementSibling.textContent), 'Intro paragraph here.');
+  await fromHost(page, { type: 'aiDone', id: req.id });
+  await sleep(300);
+  assert.deepEqual(await posted(page, 'edit'), [], 'nothing is sent before Accept');
+  assert.equal(await page.evaluate(() => window.host.text), AI_DOC);
+  await page.click('[data-ai="accept"]');
+  assert.equal(await settle(page), 'Intro text with **bold** words.\n\nSecond  block   stays *as is*.\n');
+  assert.equal((await posted(page, 'edit')).length, 1, 'one edit message');
+  assert.equal(await boxOpen(page), false);
+  assert.equal(await page.$$eval('.ai-range', (els) => els.length), 0);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('AI: Discard and Esc change nothing and cancel the request; Insert below keeps the selection', async () => {
+  const page = await open(AI_DOC);
+  let req = await aiFromBubble(page, 'shorten');
+  await fromHost(page, { type: 'aiChunk', id: req.id, text: 'Short.' });
+  await sleep(50);
+  await page.click('.ai-actions [data-ai="discard"]');
+  assert.equal(await boxOpen(page), false);
+  assert.deepEqual((await posted(page, 'aiCancel')).map((m) => m.id), [req.id]);
+
+  req = await aiFromBubble(page, 'summarize');
+  await fromHost(page, { type: 'aiChunk', id: req.id, text: 'Gist.' });
+  await fromHost(page, { type: 'aiDone', id: req.id });
+  await sleep(50);
+  await page.keyboard.press('Escape');
+  assert.equal(await boxOpen(page), false, 'Esc discards');
+  // A chunk for a discarded request is ignored.
+  await fromHost(page, { type: 'aiChunk', id: req.id, text: 'late' });
+  await sleep(300);
+  assert.deepEqual(await posted(page, 'edit'), []);
+  assert.equal(await page.evaluate(() => window.host.text), AI_DOC);
+
+  req = await aiFromBubble(page, 'summarize');
+  await fromHost(page, { type: 'aiChunk', id: req.id, text: '- one\n- two' });
+  await fromHost(page, { type: 'aiDone', id: req.id });
+  await sleep(50);
+  await page.click('[data-ai="below"]');
+  assert.equal(await settle(page), 'Intro paragraph here.\n\n- one\n- two\n\nSecond  block   stays *as is*.\n');
+  assert.equal((await posted(page, 'edit')).length, 1);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('AI: Try again sends a new request; Stop keeps the partial answer', async () => {
+  const page = await open(AI_DOC);
+  const first = await aiFromBubble(page, 'longer');
+  await fromHost(page, { type: 'aiChunk', id: first.id, text: 'Partial' });
+  await sleep(50);
+  await page.click('[data-ai="stop"]');
+  assert.deepEqual((await posted(page, 'aiCancel')).map((m) => m.id), [first.id]);
+  assert.equal(await page.$eval('[data-ai="accept"]', (b) => b.disabled), false);
+  await page.click('[data-ai="retry"]');
+  const again = (await posted(page, 'ai')).at(-1);
+  assert.notEqual(again.id, first.id);
+  assert.equal(again.markdown, first.markdown);
+  assert.equal(await page.$eval('.ai-box .ai-out', (e) => e.textContent), '');
+  await page.close();
+});
+
+await test('AI: aiFallback (prompt copied, chat opened) and aiError close the box', async () => {
+  const page = await open(AI_DOC, 'edit', { aiEditor: false });
+  await clickChar(page, '.ProseMirror p', 0, 2);
+  await page.click('.toolbar [data-act="ai"]');
+  // Nothing selected: only the writing actions; without a model they open a chat.
+  assert.deepEqual(await page.$$eval('.menu .mi', (els) => els.map((e) => e.dataset.id)), ['continue', 'ask']);
+  assert.match(await page.$eval('.menu .menu-h', (e) => e.textContent), /opens a chat/);
+  await page.keyboard.press('Escape');
+  let req = await aiFromBubble(page, 'grammar');
+  assert.equal(await boxOpen(page), true);
+  await fromHost(page, { type: 'aiFallback', id: req.id });
+  await sleep(30);
+  assert.equal(await boxOpen(page), false);
+  req = await aiFromBubble(page, 'grammar');
+  await fromHost(page, { type: 'aiError', id: req.id, message: 'The AI request was blocked' });
+  await sleep(30);
+  assert.equal(await boxOpen(page), false);
+  assert.match(await page.$eval('#toast', (e) => e.textContent), /blocked/);
+  await sleep(300);
+  assert.deepEqual(await posted(page, 'edit'), []);
+  await page.close();
+});
+
+await test('AI: Translate to… German, Other… and Ask AI… ask in the box; /ai continues writing at the cursor', async () => {
+  const page = await open(AI_DOC);
+  await aiFromBubble(page, 'translate');
+  await page.waitForSelector('.menu:not([hidden]) .mi[data-id="lang:German"]');
+  assert.equal(await page.$eval('.menu .mi:last-child .mi-l', (e) => e.textContent), 'Other…');
+  await page.click('.menu .mi[data-id="lang:German"]');
+  let req = (await posted(page, 'ai')).at(-1);
+  assert.deepEqual([req.action, req.lang, req.markdown], ['translate', 'German', 'paragraph here']);
+
+  await aiFromBubble(page, 'translate');
+  await page.click('.menu .mi[data-id="lang:"]');
+  await page.waitForSelector('.ai-box[data-phase="ask"] input');
+  await page.keyboard.type('Portuguese');
+  await page.keyboard.press('Enter');
+  req = (await posted(page, 'ai')).at(-1);
+  assert.deepEqual([req.action, req.lang], ['translate', 'Portuguese']);
+  await page.keyboard.press('Escape');
+
+  await aiFromBubble(page, 'ask');
+  await page.waitForSelector('.ai-box[data-phase="ask"] input');
+  await page.keyboard.type('Make it formal');
+  await page.keyboard.press('Enter');
+  req = (await posted(page, 'ai')).at(-1);
+  assert.deepEqual([req.action, req.instruction, req.markdown], ['ask', 'Make it formal', 'paragraph here']);
+  await page.keyboard.press('Escape');
+
+  // `/ai` on a new line: Continue writing, with the document before the cursor as context.
+  await clickChar(page, '.ProseMirror p', 1, 'Second  block   stays as is.'.length);
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('/ai');
+  await page.waitForSelector('.menu:not([hidden])');
+  assert.equal(await page.$eval('.menu .mi.kb', (e) => e.dataset.id), 'ai:continue');
+  await page.keyboard.press('Enter');
+  req = (await posted(page, 'ai')).at(-1);
+  assert.equal(req.action, 'continue');
+  assert.equal(req.context, 'Intro paragraph here.\n\nSecond  block   stays *as is*.');
+  await fromHost(page, { type: 'aiChunk', id: req.id, text: 'Next thought.' });
+  await fromHost(page, { type: 'aiDone', id: req.id });
+  await sleep(50);
+  await page.click('[data-ai="accept"]');
+  assert.equal(await settle(page), 'Intro paragraph here.\n\nSecond  block   stays *as is*.\n\nNext thought.\n');
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('AI: a mode change discards the suggestion and cancels the request', async () => {
+  const page = await open(AI_DOC);
+  const req = await aiFromBubble(page, 'improve');
+  await page.click('[data-mode="preview"]');
+  assert.equal(await boxOpen(page), false);
+  assert.deepEqual((await posted(page, 'aiCancel')).map((m) => m.id), [req.id]);
+  await sleep(300);
+  assert.equal(await page.evaluate(() => window.host.text), AI_DOC);
+  await page.close();
+});
+
+await test('margin.ai = off hides every AI entry point; aiAvailable brings them back', async () => {
+  const page = await open(AI_DOC, 'edit', { ai: 'off' });
+  const visible = (sel) => page.$eval(sel, (e) => getComputedStyle(e).display !== 'none');
+  assert.equal(await visible('.toolbar [data-act="ai"]'), false, 'toolbar');
+  await clickChar(page, '.ProseMirror p', 0, 6);
+  await page.keyboard.down('Shift');
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
+  await page.keyboard.up('Shift');
+  await page.waitForSelector('.bubble:not([hidden])');
+  assert.equal(await visible('.bubble [data-act="ai"]'), false, 'bubble');
+  await page.keyboard.press('End');
+  await page.keyboard.press('Enter');
+  await page.keyboard.type('/');
+  await page.waitForSelector('.menu:not([hidden])');
+  const ids = await page.$$eval('.menu .mi', (els) => els.map((e) => e.dataset.id));
+  assert.equal(ids.some((id) => id.startsWith('ai:')), false, 'slash menu');
+  await page.keyboard.press('Escape');
+  await fromHost(page, { type: 'aiAvailable', editor: true, setting: 'auto' });
+  await sleep(30);
+  assert.equal(await visible('.toolbar [data-act="ai"]'), true, 'back on');
   await page.close();
 });
 
