@@ -93,6 +93,22 @@ const tests: Array<[string, () => Promise<void>]> = [
     sync.dispose();
   }],
 
+  ['DocumentSync answers a burst of stale edits with one reset, and echoes seq in the ack', async () => {
+    const doc = await vscode.workspace.openTextDocument(file('callouts.md'));
+    const posted: HostToWebview[] = [];
+    const sync = new DocumentSync(doc, (m) => posted.push(m));
+    const v = doc.version;
+    await sync.applyEdit(v - 1, [{ start: 0, end: 0, text: 'stale 1' }]);
+    await sync.applyEdit(v - 1, [{ start: 0, end: 0, text: 'stale 2' }]);
+    assert.deepEqual(posted.map((m) => m.type), ['reset']);
+    await sync.applyEdit(v, [{ start: 0, end: 0, text: 'Seq\n\n' }], 4);
+    assert.deepEqual(posted[1], { type: 'ack', version: v + 1, seq: 4 });
+    sync.dispose();
+    const undo = new vscode.WorkspaceEdit();
+    undo.delete(doc.uri, new vscode.Range(0, 0, 2, 0));
+    await vscode.workspace.applyEdit(undo);
+  }],
+
   ['an external change resets the webview', async () => {
     const doc = await vscode.workspace.openTextDocument(file('callouts.md'));
     const posted: HostToWebview[] = [];

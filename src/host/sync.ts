@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import type { HostToWebview } from '../bridge/messages';
 import type { TextEdit } from '../md/types';
+import { staleEditAction } from './syncPolicy';
 
 /**
  * Keeps one Margin webview and its TextDocument in step. The document is the source of truth:
@@ -9,6 +10,8 @@ import type { TextEdit } from '../md/types';
  */
 export class DocumentSync implements vscode.Disposable {
   private applying = 0;
+  /** Document version of the last reset sent, so a burst of stale edits gets one reset, not one each. */
+  private lastResetVersion = -1;
   private readonly subscription: vscode.Disposable;
 
   constructor(
@@ -22,11 +25,15 @@ export class DocumentSync implements vscode.Disposable {
   }
 
   reset(): void {
+    this.lastResetVersion = this.document.version;
     this.post({ type: 'reset', text: this.document.getText(), version: this.document.version });
   }
 
-  async applyEdit(version: number, edits: TextEdit[]): Promise<void> {
-    if (version !== this.document.version) {
+  /** `seq`, when the webview sent one, is echoed in the ack. */
+  async applyEdit(version: number, edits: TextEdit[], seq?: number): Promise<void> {
+    const action = staleEditAction(version, this.document.version, this.lastResetVersion);
+    if (action === 'drop') return; // the webview reloads from the reset already sent and drops this edit
+    if (action === 'reset') {
       this.reset();
       return;
     }
@@ -42,8 +49,11 @@ export class DocumentSync implements vscode.Disposable {
       this.applying--;
     }
     // Exactly one version step means nothing else changed the document while we applied.
-    if (ok && this.document.version === version + 1) this.post({ type: 'ack', version: this.document.version });
-    else this.reset();
+    if (ok && this.document.version === version + 1) {
+      this.post(seq === undefined ? { type: 'ack', version: this.document.version } : { type: 'ack', version: this.document.version, seq });
+    } else {
+      this.reset();
+    }
   }
 
   dispose(): void {

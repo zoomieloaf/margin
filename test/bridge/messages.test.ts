@@ -17,6 +17,8 @@ describe('isWebviewMessage', () => {
     { type: 'log', text: 'hi' },
     { type: 'focus' },
     { type: 'blur' },
+    { type: 'resync' },
+    { type: 'edit', version: 3, edits: [], seq: 7 },
   ])('accepts %j', (m) => {
     expect(isWebviewMessage(m)).toBe(true);
   });
@@ -33,6 +35,8 @@ describe('isWebviewMessage', () => {
     { type: 'mode', mode: 'wysiwyg' },
     { type: 'stats', words: '3' },
     { type: 'openLink' },
+    { type: 'edit', version: 1, edits: [], seq: -1 },
+    { type: 'edit', version: 1, edits: [], seq: '2' },
   ])('rejects %j', (m) => {
     expect(isWebviewMessage(m)).toBe(false);
   });

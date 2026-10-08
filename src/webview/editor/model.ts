@@ -26,11 +26,19 @@ export class DocModel {
   private seen = new Map<string, PmNode>();
   private latest: PmNode | null = null;
   private inFlight = false;
+  /** Sequence number of the last edit sent; the host echoes it in the ack. */
+  private seq = 0;
+  /** An ack didn't match the edit in flight: nothing is sent until the host's reset arrives. */
+  private resyncing = false;
   /** Callbacks waiting for the model to have nothing unsent or unacknowledged. */
   private idle: Array<() => void> = [];
   readonly newId = createIdGenerator('n');
 
-  constructor(private readonly send: (edit: OutgoingEdit) => void) {}
+  constructor(
+    private readonly send: (edit: OutgoingEdit, seq: number) => void,
+    /** Asks the host for a reset (the webview posts `resync`). */
+    private readonly resync: () => void = () => {},
+  ) {}
 
   /** Parses `text` and returns the ProseMirror document to show. */
   load(text: string, version: number): PmNode {
@@ -39,6 +47,7 @@ export class DocModel {
     this.version = version;
     this.latest = null;
     this.inFlight = false;
+    this.resyncing = false;
     this.seen.clear();
     const nodes = this.doc.blocks.map((b) => {
       const node = blockToPm(b);
@@ -55,7 +64,7 @@ export class DocModel {
   }
 
   get busy(): boolean {
-    return this.inFlight || this.latest !== null;
+    return this.inFlight || this.latest !== null || this.resyncing;
   }
 
   /** Call with the editor's current document after it changed. */
@@ -64,8 +73,20 @@ export class DocModel {
     this.flush();
   }
 
-  /** The host applied our edit; `version` is the document's new version. */
-  ack(version: number): void {
+  /**
+   * The host applied our edit; `version` is the document's new version and `seq` (when the host
+   * echoes it) the edit's sequence number. An ack that doesn't match the edit in flight means
+   * the two sides disagree (e.g. a reset made us drop an edit the host then applied), so it is
+   * ignored and the host is asked for a fresh copy instead of editing at wrong offsets.
+   */
+  ack(version: number, seq?: number): void {
+    if (!this.inFlight || version !== this.version + 1 || (seq !== undefined && seq !== this.seq)) {
+      if (!this.resyncing) {
+        this.resyncing = true;
+        this.resync();
+      }
+      return;
+    }
     this.version = version;
     this.inFlight = false;
     this.flush();
@@ -99,19 +120,19 @@ export class DocModel {
     const pm = this.load(text, this.version);
     if (edit) {
       this.inFlight = true;
-      this.send({ version: this.version, edits: [edit] });
+      this.send({ version: this.version, edits: [edit] }, ++this.seq);
     }
     return pm;
   }
 
   private flush(): void {
-    if (this.inFlight || !this.latest) return;
+    if (this.inFlight || this.resyncing || !this.latest) return;
     const pmDoc = this.latest;
     this.latest = null;
     const edit = this.reconcile(pmDoc);
     if (!edit) return;
     this.inFlight = true;
-    this.send({ version: this.version, edits: [edit] });
+    this.send({ version: this.version, edits: [edit] }, ++this.seq);
   }
 
   private reconcile(pmDoc: PmNode): TextEdit | null {

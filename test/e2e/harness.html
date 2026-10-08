@@ -17,8 +17,10 @@ function acquireVsCodeApi() {
         if (m.version !== window.host.version) { send({ type: 'reset', text: window.host.text, version: window.host.version }); return; }
         window.host.text = applyEdits(window.host.text, m.edits);
         window.host.version++;
-        setTimeout(() => send({ type: 'ack', version: window.host.version }), 5);
+        const ack = { type: 'ack', version: window.host.version, seq: m.seq };
+        setTimeout(() => send(ack), 5);
       }
+      if (m.type === 'resync') send({ type: 'reset', text: window.host.text, version: window.host.version });
     },
   };
 }

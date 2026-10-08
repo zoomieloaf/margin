@@ -80,7 +80,10 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
           });
           break;
         case 'edit':
-          await sync.applyEdit(m.version, m.edits);
+          await sync.applyEdit(m.version, m.edits, m.seq);
+          break;
+        case 'resync':
+          sync.reset();
           break;
         case 'undo':
         case 'redo':

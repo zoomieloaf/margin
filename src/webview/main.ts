@@ -34,7 +34,10 @@ class App implements AppApi {
   mode: Mode = 'preview';
   readonly menu: Menu;
   readonly view: EditorView;
-  private readonly model = new DocModel((e) => post({ type: 'edit', version: e.version, edits: e.edits }));
+  private readonly model = new DocModel(
+    (e, seq) => post({ type: 'edit', version: e.version, edits: e.edits, seq }),
+    () => post({ type: 'resync' }),
+  );
   private readonly root: HTMLElement;
   private readonly scroll: HTMLElement;
   private readonly source: HTMLTextAreaElement;
@@ -191,7 +194,7 @@ class App implements AppApi {
         this.setMode(m.mode);
         break;
       case 'ack':
-        this.model.ack(m.version);
+        this.model.ack(m.version, m.seq);
         break;
       case 'reset':
         this.load(this.model.reset(m.text, m.version), true);
