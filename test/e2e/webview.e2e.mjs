@@ -264,6 +264,50 @@ await test('toolbar buttons work: Bold, Outline and the Export menu', async () =
   await page.close();
 });
 
+/** Types `text` at the end of the first paragraph, then returns what was posted in the next ~40 ms (well inside the 150 ms debounce). */
+async function typeThen(page, text, action) {
+  await clickChar(page, '.ProseMirror p', 0, 5);
+  await page.keyboard.type(text);
+  await action();
+  await sleep(40);
+  return page.evaluate(() => window.host.posted.map((m) => m.type).filter((t) => !['focus', 'blur', 'stats', 'mode', 'ready'].includes(t)));
+}
+
+await test('Ctrl+S sends the typing still waiting for the debounce', async () => {
+  const page = await open('Hello\n');
+  const posted = await typeThen(page, '!', async () => {
+    await page.keyboard.down(mod);
+    await page.keyboard.press('s');
+    await page.keyboard.up(mod);
+  });
+  assert.deepEqual(posted, ['edit']);
+  await page.close();
+});
+
+await test('hiding the page (visibilitychange, pagehide) sends the pending typing', async () => {
+  for (const hide of [
+    () => { Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true }); document.dispatchEvent(new Event('visibilitychange')); },
+    () => window.dispatchEvent(new Event('pagehide')),
+  ]) {
+    const page = await open('Hello\n');
+    const posted = await typeThen(page, '!', () => page.evaluate(hide));
+    assert.deepEqual(posted, ['edit']);
+    await page.close();
+  }
+});
+
+await test('Export right after typing exports the new text (edit first, then export)', async () => {
+  const page = await open('Hello\n');
+  const posted = await typeThen(page, '!', async () => {
+    await page.click('[data-act="export"]');
+    await page.click('.menu .mi[data-id="html"]');
+  });
+  await sleep(100);
+  const all = await page.evaluate(() => window.host.posted.map((m) => m.type).filter((t) => t === 'edit' || t === 'exportHtml'));
+  assert.deepEqual(all, ['edit', 'exportHtml'], `posted right after: ${posted.join(', ')}`);
+  await page.close();
+});
+
 await test('an external change resets the editor', async () => {
   const page = await open('Old text\n');
   await page.evaluate(() => {

@@ -130,6 +130,11 @@ class App implements AppApi {
     window.addEventListener('blur', () => post({ type: 'blur' }));
     this.scroll.addEventListener('scroll', () => this.bubble.update(this.view, false), { passive: true });
     window.addEventListener('resize', () => this.menu.close());
+    // Don't keep typing back when the tab is hidden or the webview goes away.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this.flushNow();
+    });
+    window.addEventListener('pagehide', () => this.flushNow());
     post({ type: 'ready' });
     if (document.hasFocus()) post({ type: 'focus' });
   }
@@ -327,10 +332,15 @@ class App implements AppApi {
   }
 
   private exportAction(id: string): void {
-    if (id === 'pdf') post({ type: 'exportPdf' });
-    else if (id === 'html') post({ type: 'exportHtml' });
-    else if (id === 'md') post({ type: 'copyMarkdown' });
-    else if (id === 'rich') void this.copyRich();
+    if (id === 'rich') {
+      void this.copyRich();
+      return;
+    }
+    const type = id === 'pdf' ? 'exportPdf' : id === 'html' ? 'exportHtml' : id === 'md' ? 'copyMarkdown' : null;
+    if (!type) return;
+    // These read the file on the host: send the typing first and wait until it is applied.
+    this.flushNow();
+    this.model.whenIdle(() => post({ type }));
   }
 
   private async copyRich(): Promise<void> {
@@ -396,6 +406,9 @@ class App implements AppApi {
       // preventDefault also keeps ProseMirror's keymap from seeing the key a second time.
       e.preventDefault();
       this.history(k === 'y' || e.shiftKey ? 'redo' : 'undo');
+    } else if (mod && !e.shiftKey && !e.altKey && k === 's') {
+      // VS Code saves (the key is forwarded to it): send the typing still waiting for the debounce first.
+      this.flushNow();
     } else if (mod && !e.shiftKey && k === 'e') {
       e.preventDefault();
       this.setMode(this.mode === 'edit' ? 'preview' : 'edit');
