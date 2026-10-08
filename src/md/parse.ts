@@ -1,0 +1,57 @@
+import { fromMarkdown } from 'mdast-util-from-markdown';
+import { frontmatterFromMarkdown } from 'mdast-util-frontmatter';
+import { gfmFromMarkdown } from 'mdast-util-gfm';
+import { frontmatter } from 'micromark-extension-frontmatter';
+import { gfm } from 'micromark-extension-gfm';
+import type { Root, RootContent } from 'mdast';
+import { detectConventions } from './conventions';
+import { createIdGenerator } from './ids';
+import { nodeKey } from './key';
+import type { BlockKind, MdDocument, SourceBlock } from './types';
+
+export function parseTree(src: string): Root {
+  return fromMarkdown(src, {
+    extensions: [gfm(), frontmatter(['yaml'])],
+    mdastExtensions: [gfmFromMarkdown(), frontmatterFromMarkdown(['yaml'])],
+  });
+}
+
+export function kindOf(node: RootContent): BlockKind {
+  switch (node.type) {
+    case 'paragraph': return 'paragraph';
+    case 'heading': return 'heading';
+    case 'list': return 'list';
+    case 'blockquote': return 'quote';
+    case 'callout': return 'callout';
+    case 'code': return 'code';
+    case 'table': return 'table';
+    case 'thematicBreak': return 'divider';
+    default: return 'raw';
+  }
+}
+
+export function parseMarkdown(text: string, nextId: () => string = createIdGenerator()): MdDocument {
+  const bom = text.charCodeAt(0) === 0xfeff;
+  const src = bom ? text.slice(1) : text;
+  const tree = parseTree(src);
+  const blocks: SourceBlock[] = [];
+  let cursor = 0;
+  for (const node of tree.children) {
+    const start = node.position?.start.offset;
+    const end = node.position?.end.offset;
+    if (start === undefined || end === undefined || start < cursor) {
+      throw new Error(`Margin: unexpected position for ${node.type} block at offset ${String(start)}`);
+    }
+    blocks.push({
+      id: nextId(),
+      kind: kindOf(node),
+      original: src.slice(start, end),
+      originalKey: nodeKey(node),
+      gapBefore: src.slice(cursor, start),
+      data: node,
+      dirty: false,
+    });
+    cursor = end;
+  }
+  return { bom, blocks, trailing: src.slice(cursor), conventions: detectConventions(src, tree) };
+}
