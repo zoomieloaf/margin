@@ -205,8 +205,11 @@ const nodes: Record<string, NodeSpec> = {
 /** Order matters: it is the nesting order used when writing Markdown (outermost first). */
 const marks: Record<string, MarkSpec> = {
   link: {
-    /** `outside`: formatting marks that wrapped this link in the source (`**[x](y)**` → ['strong']). */
-    attrs: { href: {}, title: { default: null }, outside: { default: [] } },
+    /**
+     * `outside`: formatting marks that wrapped this link in the source (`**[x](y)**` → ['strong']).
+     * `literal`: written as a bare GFM autolink (`www.x.com`, `https://x`), kept that way when saved.
+     */
+    attrs: { href: {}, title: { default: null }, outside: { default: [] }, literal: { default: false } },
     inclusive: false,
     parseDOM: [{ tag: 'a[href]', getAttrs: (dom) => ({ href: (dom as HTMLElement).getAttribute('href'), title: (dom as HTMLElement).getAttribute('title') }) }],
     toDOM: (mark) => ['a', { href: mark.attrs.href as string, title: (mark.attrs.title as string | null) ?? undefined }, 0],

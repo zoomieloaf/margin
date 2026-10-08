@@ -34,6 +34,8 @@ export interface Conventions {
   strong: '*' | '_';
   fence: '`' | '~';
   rule: '-' | '*' | '_';
+  /** How hard line breaks are written: two trailing spaces or a backslash. */
+  hardBreak: 'spaces' | 'backslash';
 }
 
 export interface SourceBlock {

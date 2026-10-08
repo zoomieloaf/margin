@@ -2,6 +2,7 @@ import type {
   BlockContent, DefinitionContent, Link, List, ListItem, PhrasingContent, RootContent, Table, TableCell,
 } from 'mdast';
 import type { Mark as PmMark, Node as PmNode } from 'prosemirror-model';
+import type { LiteralLinkData } from '../../md/autolink';
 import { DEFAULT_CONVENTIONS } from '../../md/conventions';
 import { serializeBlock } from '../../md/serialize';
 import type { Callout, SourceBlock } from '../../md/types';
@@ -99,7 +100,12 @@ function inlineToPm(nodes: PhrasingContent[], marks: readonly PmMark[] = []): Pm
       case 'delete': add('strike', node.children); break;
       case 'mark': add('mark', node.children); break;
       case 'link':
-        add('link', node.children, { href: node.url, title: node.title ?? null, outside: marks.map((mk) => mk.type.name) });
+        add('link', node.children, {
+          href: node.url,
+          title: node.title ?? null,
+          outside: marks.map((mk) => mk.type.name),
+          literal: (node.data as LiteralLinkData | undefined)?.literal === true,
+        });
         break;
       case 'inlineCode':
         if (node.value) out.push(schema.text(node.value, m.code!.create().addToSet(marks)));
@@ -198,6 +204,7 @@ function wrapperFor(mark: PmMark): PhrasingContent & InlineParent {
     case 'mark': return { type: 'mark', children: [] };
     case 'link': {
       const link: Link = { type: 'link', url: mark.attrs.href as string, title: mark.attrs.title as string | null, children: [] };
+      if (mark.attrs.literal) link.data = { literal: true } as Link['data'];
       return link;
     }
     default:

@@ -6,6 +6,7 @@ import { frontmatter } from 'micromark-extension-frontmatter';
 import { gfm } from 'micromark-extension-gfm';
 import { math } from 'micromark-extension-math';
 import type { Root, RootContent, Table } from 'mdast';
+import { markLiteralAutolinks } from './autolink';
 import { detectConventions } from './conventions';
 import { liftCallouts } from './callout';
 import { liftHighlights } from './highlight';
@@ -18,6 +19,7 @@ export function parseTree(src: string): Root {
     extensions: [gfm(), frontmatter(['yaml']), math({ singleDollarTextMath: false })],
     mdastExtensions: [gfmFromMarkdown(), frontmatterFromMarkdown(['yaml']), mathFromMarkdown()],
   });
+  markLiteralAutolinks(tree, src);
   liftCallouts(tree);
   liftHighlights(tree, src);
   return tree;

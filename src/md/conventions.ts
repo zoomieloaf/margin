@@ -2,7 +2,7 @@ import type { Nodes, Root } from 'mdast';
 import type { Conventions } from './types';
 
 export const DEFAULT_CONVENTIONS: Conventions = {
-  eol: '\n', bullet: '-', bulletOrdered: '.', emphasis: '*', strong: '*', fence: '`', rule: '-',
+  eol: '\n', bullet: '-', bulletOrdered: '.', emphasis: '*', strong: '*', fence: '`', rule: '-', hardBreak: 'spaces',
 };
 
 export function detectConventions(src: string, tree: Root): Conventions {
@@ -27,6 +27,7 @@ export function detectConventions(src: string, tree: Root): Conventions {
       } else if (node.type === 'emphasis' && (ch === '*' || ch === '_')) set('emphasis', ch);
       else if (node.type === 'strong' && (ch === '*' || ch === '_')) set('strong', ch);
       else if (node.type === 'code' && (ch === '`' || ch === '~')) set('fence', ch);
+      else if (node.type === 'break') set('hardBreak', ch === '\\' ? 'backslash' : 'spaces');
       else if (node.type === 'thematicBreak' && (ch === '-' || ch === '*' || ch === '_')) set('rule', ch);
     }
     if ('children' in node) for (const child of node.children) visit(child as Nodes);

@@ -48,6 +48,13 @@ describe('DocModel', () => {
     expect(t.sync()).toBe('# Title\n\nFirst  para. edited\n\n* keep\n* style\n\nLast _one_.\n');
   });
 
+  it('typing in a paragraph keeps its autolinks and hard breaks as written', () => {
+    const src = 'Visit www.example.com or https://x.y  \nand mail a@b.co.\n';
+    const t = setup(src);
+    t.apply((s) => s.tr.insertText('!', t.state.doc.child(0).nodeSize - 1));
+    expect(t.sync()).toBe('Visit www.example.com or https://x.y  \nand mail a@b.co.!\n');
+  });
+
   it('sends nothing when nothing changed', () => {
     const t = setup('A\n\nB\n');
     t.apply((s) => s.tr.setMeta('noop', true));
