@@ -60,6 +60,17 @@ describe('serializeBlock', () => {
     expect(serializeBlock(node, d.conventions)).toBe('```\nx\ny\n```');
   });
 
+  it('escapes literal ==x== in text so it does not become a mark on re-parse', () => {
+    const node = { type: 'paragraph', children: [{ type: 'text', value: 'a==b==c' }] } as never;
+    const d = parseMarkdown('x\n');
+    const out = serializeBlock(node, d.conventions);
+    const re = parseMarkdown(out + '\n').blocks[0]!;
+    expect(nodeKey(re.data)).toBe(nodeKey(node));
+    expect(out).toBe('a\\==b==c');
+    const loose = { type: 'paragraph', children: [{ type: 'text', value: 'use === instead of ==' }] } as never;
+    expect(serializeBlock(loose, d.conventions)).toBe('use === instead of ==');
+  });
+
   it.each([
     '# Heading',
     'Para with **bold**, *em*, ~~del~~, `code`, [link](https://x.y) and ==mark==.',

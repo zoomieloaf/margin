@@ -17,7 +17,7 @@ export function parseTree(src: string): Root {
     mdastExtensions: [gfmFromMarkdown(), frontmatterFromMarkdown(['yaml'])],
   });
   liftCallouts(tree);
-  liftHighlights(tree);
+  liftHighlights(tree, src);
   return tree;
 }
 

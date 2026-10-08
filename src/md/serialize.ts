@@ -3,7 +3,7 @@ import { gfmToMarkdown } from 'mdast-util-gfm';
 import { toMarkdown, type Options } from 'mdast-util-to-markdown';
 import type { RootContent } from 'mdast';
 import { calloutHandler } from './callout';
-import { markHandler } from './highlight';
+import { markHandler, textHandler } from './highlight';
 import type { Conventions } from './types';
 
 export function markdownOptions(c: Conventions): Options {
@@ -19,7 +19,7 @@ export function markdownOptions(c: Conventions): Options {
     listItemIndent: 'one',
     incrementListMarker: true,
     extensions: [gfmToMarkdown(), frontmatterToMarkdown(['yaml'])],
-    handlers: { callout: calloutHandler, mark: markHandler } as unknown as Options['handlers'],
+    handlers: { callout: calloutHandler, mark: markHandler, text: textHandler } as unknown as Options['handlers'],
   };
 }
 

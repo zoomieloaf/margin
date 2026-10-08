@@ -49,6 +49,24 @@ describe('highlights', () => {
     expect(em.children.map((c) => c.type)).toEqual(['text', 'mark', 'text']);
   });
 
+  const marks = (src: string) =>
+    (first(src).data as Paragraph).children.filter((c) => c.type === 'mark').map((m) => (m as { children: Array<{ value: string }> }).children[0]!.value);
+
+  it('does not highlight across === or chained ==', () => {
+    expect(marks('use === instead of ==\n')).toEqual([]);
+    expect(marks('a == b == c\n')).toEqual([]);
+  });
+
+  it('highlights tight ==y== and a whole-paragraph ==a==', () => {
+    expect(marks('x ==y== z\n')).toEqual(['y']);
+    expect(marks('==a==\n')).toEqual(['a']);
+  });
+
+  it('does not highlight when a delimiter is backslash-escaped', () => {
+    expect(marks('a\\==b==c\n')).toEqual([]);
+    expect(marks('a&#61;=b==c\n')).toEqual([]);
+  });
+
   it('never highlights inside inline code or fenced code', () => {
     const p = first('Use `==x==` here\n').data as Paragraph;
     expect(p.children.some((c) => c.type === 'mark')).toBe(false);
