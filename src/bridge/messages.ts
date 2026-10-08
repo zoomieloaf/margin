@@ -16,6 +16,8 @@ export type WebviewToHost =
   | { type: 'mode'; mode: Mode }
   | { type: 'stats'; words: number }
   | { type: 'openLink'; href: string }
+  /** Which of these local link targets exist? The host answers with `linkStatus`. */
+  | { type: 'checkLinks'; hrefs: string[] }
   | { type: 'exportPdf' }
   | { type: 'exportHtml' }
   | { type: 'copyMarkdown' }
@@ -28,11 +30,19 @@ export type WebviewToHost =
 
 /** Messages the extension host sends to the webview. */
 export type HostToWebview =
-  | { type: 'init'; text: string; version: number; mode: Mode; settings: WebviewSettings; baseUri: string }
+  /** `anchor`: the `#fragment` of the link that opened this page; the webview scrolls to that heading. */
+  | { type: 'init'; text: string; version: number; mode: Mode; settings: WebviewSettings; baseUri: string; anchor?: string }
   | { type: 'ack'; version: number; seq?: number }
   | { type: 'reset'; text: string; version: number }
   | { type: 'setMode'; mode: Mode }
-  | { type: 'toast'; text: string; sub?: string };
+  | { type: 'toast'; text: string; sub?: string }
+  /** A link to this already open page was followed: scroll to the heading with that GitHub id. */
+  | { type: 'scrollTo'; anchor: string }
+  /** Answer to `checkLinks`: the hrefs whose target is missing, and each checked href's path for the hover title. */
+  | { type: 'linkStatus'; missing: string[]; paths: Array<[href: string, path: string]> };
+
+/** More links than this in one `checkLinks` is not a document someone wrote by hand: refused. */
+export const MAX_CHECKED_LINKS = 2000;
 
 const MODES: readonly string[] = ['preview', 'edit', 'source'];
 const isObj = (x: unknown): x is Record<string, unknown> => typeof x === 'object' && x !== null;
@@ -54,6 +64,8 @@ export function isWebviewMessage(x: unknown): x is WebviewToHost {
       return isInt(x.words);
     case 'openLink':
       return typeof x.href === 'string';
+    case 'checkLinks':
+      return Array.isArray(x.hrefs) && x.hrefs.length <= MAX_CHECKED_LINKS && x.hrefs.every((h) => typeof h === 'string');
     case 'log':
       return typeof x.text === 'string';
     default:

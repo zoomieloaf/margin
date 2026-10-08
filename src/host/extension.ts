@@ -7,7 +7,8 @@ import { MarginEditorProvider, VIEW_TYPE, type Session } from './provider';
 const ASKED_KEY = 'margin.askedDefaultEditor';
 
 export function activate(context: vscode.ExtensionContext): void {
-  const provider = new MarginEditorProvider(context);
+  const testing = process.env.MARGIN_TEST === '1';
+  const provider = new MarginEditorProvider(context, testing);
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, provider, {
       webviewOptions: { retainContextWhenHidden: true },
@@ -68,7 +69,8 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // ---------------------------------------------------------------- test hooks (integration tests only)
-  if (process.env.MARGIN_TEST === '1') {
+  if (testing) {
+    const warnings: Array<{ message: string; items: string[] }> = [];
     const sessionFor = (uri: vscode.Uri | string) => {
       const s = provider.sessionsFor(typeof uri === 'string' ? vscode.Uri.parse(uri) : uri)[0];
       if (!s) throw new Error(`No Margin editor is open for ${uri.toString()}`);
@@ -85,6 +87,20 @@ export function activate(context: vscode.ExtensionContext): void {
         if (!isWebviewMessage(message)) throw new Error('Not a webview message');
         return sessionFor(uri).receive(message);
       }),
+      // Follows a link from that editor and resolves when it is done (a webview `openLink` isn't awaited).
+      vscode.commands.registerCommand('margin._test.openLink', (uri: vscode.Uri | string, href: string) =>
+        provider.followLink(sessionFor(uri).document, href),
+      ),
+      // What the host posted to that editor's webview.
+      vscode.commands.registerCommand('margin._test.posted', (uri: vscode.Uri | string) => sessionFor(uri).posted ?? []),
+      // From now on, warnings are answered with `answer` instead of shown, and recorded.
+      vscode.commands.registerCommand('margin._test.answerWarnings', (answer?: string) => {
+        provider.warn = (message, ...items) => {
+          warnings.push({ message, items });
+          return Promise.resolve(answer);
+        };
+      }),
+      vscode.commands.registerCommand('margin._test.warnings', () => [...warnings]),
     );
   }
 

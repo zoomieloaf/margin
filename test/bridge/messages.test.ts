@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isWebviewMessage } from '../../src/bridge/messages';
+import { isWebviewMessage, MAX_CHECKED_LINKS } from '../../src/bridge/messages';
 
 describe('isWebviewMessage', () => {
   it.each([
@@ -19,6 +19,8 @@ describe('isWebviewMessage', () => {
     { type: 'blur' },
     { type: 'resync' },
     { type: 'edit', version: 3, edits: [], seq: 7 },
+    { type: 'checkLinks', hrefs: [] },
+    { type: 'checkLinks', hrefs: ['./a.md', '../b/', 'c.png'] },
   ])('accepts %j', (m) => {
     expect(isWebviewMessage(m)).toBe(true);
   });
@@ -37,7 +39,17 @@ describe('isWebviewMessage', () => {
     { type: 'openLink' },
     { type: 'edit', version: 1, edits: [], seq: -1 },
     { type: 'edit', version: 1, edits: [], seq: '2' },
+    { type: 'checkLinks' },
+    { type: 'checkLinks', hrefs: './a.md' },
+    { type: 'checkLinks', hrefs: ['a.md', 3] },
   ])('rejects %j', (m) => {
     expect(isWebviewMessage(m)).toBe(false);
+  });
+});
+
+describe('checkLinks', () => {
+  it('rejects an unreasonably long batch', () => {
+    expect(isWebviewMessage({ type: 'checkLinks', hrefs: Array.from({ length: MAX_CHECKED_LINKS }, (_, i) => `${i}.md`) })).toBe(true);
+    expect(isWebviewMessage({ type: 'checkLinks', hrefs: Array.from({ length: MAX_CHECKED_LINKS + 1 }, (_, i) => `${i}.md`) })).toBe(false);
   });
 });

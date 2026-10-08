@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { isWebviewMessage, type HostToWebview, type Mode, type WebviewToHost } from '../bridge/messages';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
-import { linkTarget } from './links';
+import { checkLinks, followLink, type Pages } from './navigate';
 import { SerialQueue } from './queue';
 import { DocumentSync } from './sync';
 import { webviewHtml } from './webviewHtml';
@@ -22,9 +22,21 @@ export interface Session {
   post(message: HostToWebview): void;
   /** Handles a message as if the webview sent it, after every message already queued. */
   receive(message: WebviewToHost): Promise<void>;
+  /** Everything posted to the webview; kept only for the integration tests. */
+  posted?: HostToWebview[];
 }
 
-export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
+/** How a page opened from a link starts, until its editor is created. */
+interface PendingOpen {
+  mode: Mode;
+  anchor?: string;
+  at: number;
+}
+
+/** A pending open older than this belongs to an editor that never came (the open failed). */
+const PENDING_MS = 30_000;
+
+export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pages {
   private readonly sessions = new Set<Session>();
   private activeSession: Session | undefined;
   private focusContext: boolean | undefined;
@@ -32,8 +44,12 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
   private readonly changed = new vscode.EventEmitter<Session | undefined>();
   /** Fires when the active Margin editor, its mode or its word count changes. */
   readonly onDidChangeActive = this.changed.event;
+  private readonly pending = new Map<string, PendingOpen>();
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  /** `record`: keep what each session posts (integration tests). */
+  constructor(private readonly context: vscode.ExtensionContext, private readonly record = false) {}
+
+  warn = (message: string, ...items: string[]): Thenable<string | undefined> => vscode.window.showWarningMessage(message, ...items);
 
   get active(): Session | undefined {
     return this.activeSession;
@@ -56,15 +72,23 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
     panel.webview.html = webviewHtml(panel.webview, this.context.extensionUri);
 
     const config = vscode.workspace.getConfiguration('margin');
+    // Opened by following a link: starts in that link's mode and scrolls to its heading once.
+    const opened = this.takePending(document.uri);
+    let anchor = opened?.anchor;
     // One message at a time, in order: an edit is applied before a following undo runs.
     const queue = new SerialQueue();
+    const posted: HostToWebview[] | undefined = this.record ? [] : undefined;
     const session: Session = {
       document,
       panel,
-      mode: config.get<Mode>('defaultMode', 'preview'),
+      mode: opened?.mode ?? config.get<Mode>('defaultMode', 'preview'),
       words: 0,
       focused: false,
-      post: (m) => void panel.webview.postMessage(m),
+      posted,
+      post: (m) => {
+        posted?.push(m);
+        void panel.webview.postMessage(m);
+      },
       receive: (m) => queue.push(() => handle(m)),
     };
     const sync = new DocumentSync(document, session.post);
@@ -81,7 +105,9 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
             mode: session.mode,
             settings: { outlineVisible: vscode.workspace.getConfiguration('margin').get('outline.visible', true) },
             baseUri: panel.webview.asWebviewUri(docDir).toString() + '/',
+            ...(anchor ? { anchor } : {}),
           });
+          anchor = undefined;
           break;
         case 'edit':
           try {
@@ -118,7 +144,12 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
         // Started in order (they read the document before their first await) but not awaited:
         // printing, or a notification waiting for a click, must not hold up the edits behind them.
         case 'openLink':
-          void openLink(document, m.href).catch(report);
+          void followLink(document, m.href, this).catch(report);
+          break;
+        case 'checkLinks':
+          void checkLinks(document, m.hrefs)
+            .then((status) => session.post({ type: 'linkStatus', ...status }))
+            .catch(report);
           break;
         case 'exportPdf':
           void exportPdf(document).catch(report);
@@ -160,6 +191,31 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
     });
   }
 
+  /** Opens `uri` in Margin, or reveals the Margin editor already showing it, and scrolls to `anchor`. */
+  async openPage(uri: vscode.Uri, opts: { mode: Mode; anchor?: string }): Promise<void> {
+    const open = this.sessionsFor(uri);
+    const s = open.find((x) => x.panel.active) ?? open.find((x) => x.panel.visible) ?? open[0];
+    if (s) {
+      // Already open: keep its mode (the user may be editing there), just bring it up.
+      await vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE, { viewColumn: s.panel.viewColumn, preserveFocus: false });
+      if (opts.anchor) s.post({ type: 'scrollTo', anchor: opts.anchor });
+      return;
+    }
+    this.pending.set(uri.toString(), { ...opts, at: Date.now() });
+    await vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE);
+  }
+
+  private takePending(uri: vscode.Uri): PendingOpen | undefined {
+    const p = this.pending.get(uri.toString());
+    this.pending.delete(uri.toString());
+    return p && Date.now() - p.at < PENDING_MS ? p : undefined;
+  }
+
+  /** Follows a link as if it was clicked in the Margin editor showing `document` (integration tests). */
+  followLink(document: vscode.TextDocument, href: string): Promise<void> {
+    return followLink(document, href, this);
+  }
+
   private setActive(session: Session | undefined): void {
     this.activeSession = session;
     void vscode.commands.executeCommand('setContext', 'margin.active', session !== undefined);
@@ -192,17 +248,3 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider {
 }
 
 const report = (err: unknown) => console.error('[margin]', err);
-
-async function openLink(document: vscode.TextDocument, href: string): Promise<void> {
-  const target = linkTarget(href);
-  if (target.kind === 'external') {
-    await vscode.env.openExternal(vscode.Uri.parse(target.href));
-    return;
-  }
-  if (target.kind !== 'file') return;
-  // `/docs/a.md` is relative to the workspace folder (like on GitHub, where it's the repository root).
-  const root = target.rooted
-    ? vscode.workspace.getWorkspaceFolder(document.uri)?.uri ?? vscode.workspace.workspaceFolders?.[0]?.uri ?? vscode.Uri.joinPath(document.uri, '..')
-    : vscode.Uri.joinPath(document.uri, '..');
-  await vscode.commands.executeCommand('vscode.open', vscode.Uri.joinPath(root, target.path));
-}

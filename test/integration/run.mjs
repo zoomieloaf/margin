@@ -1,7 +1,7 @@
 // Runs the integration suite inside a real VS Code (the installed one when found, otherwise a
 // downloaded build). Usage: npm run test:integration
 import * as esbuild from 'esbuild';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { runTests } from '@vscode/test-electron';
@@ -22,6 +22,12 @@ const workspace = mkdtempSync(path.join(tmpdir(), 'margin-it-'));
 mkdirSync(path.join(workspace, 'docs'), { recursive: true });
 copyFileSync('test/fixtures/roundtrip/01-basic.md', path.join(workspace, 'docs', 'sample.md'));
 copyFileSync('test/fixtures/roundtrip/08-callouts-highlight.md', path.join(workspace, 'docs', 'callouts.md'));
+// Pages for the links tests: a page with headings, a folder with a README, a plain text file.
+writeFileSync(path.join(workspace, 'docs', 'other.md'), '# Other\n\n## Section\n\nText.\n\n## Section two\n\nMore.\n');
+mkdirSync(path.join(workspace, 'docs', 'guides'));
+writeFileSync(path.join(workspace, 'docs', 'guides', 'README.md'), '# Guides\n');
+mkdirSync(path.join(workspace, 'docs', 'empty'));
+writeFileSync(path.join(workspace, 'docs', 'notes.txt'), 'one\ntwo\nthree\n');
 
 const installed = [
   process.env.MARGIN_VSCODE,
