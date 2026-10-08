@@ -59,7 +59,7 @@ export class Toolbar {
     });
     this.el.addEventListener('click', (e) => {
       const target = e.target as HTMLElement;
-      const mode = target.closest<HTMLElement>('[data-mode]');
+      const mode = target.closest<HTMLElement>('button[data-mode]'); // not the .app root, which also has data-mode
       if (mode) return this.app.setMode(mode.dataset.mode as Mode);
       const b = target.closest<HTMLElement>('[data-act]');
       if (!b) return;

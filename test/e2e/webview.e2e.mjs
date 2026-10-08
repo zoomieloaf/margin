@@ -245,6 +245,25 @@ await test('the webview reports focus and blur to the host', async () => {
   await page.close();
 });
 
+await test('toolbar buttons work: Bold, Outline and the Export menu', async () => {
+  const page = await open('Hello world\n');
+  await clickChar(page, '.ProseMirror p', 0, 6);
+  await page.keyboard.down('Shift');
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+  await page.keyboard.up('Shift');
+  await page.click('.toolbar [data-act="strong"]');
+  assert.equal(await settle(page), 'Hello **world**\n');
+  const outlineBefore = await page.$eval('.outline', (e) => e.hidden);
+  await page.click('.toolbar [data-act="outline"]');
+  assert.equal(await page.$eval('.outline', (e) => e.hidden), !outlineBefore);
+  await page.click('.toolbar [data-act="export"]');
+  assert.equal(await page.$eval('.menu', (e) => e.hidden), false);
+  await page.click('.menu .mi[data-id="html"]');
+  await sleep(50);
+  assert.ok(await page.evaluate(() => window.host.posted.some((m) => m.type === 'exportHtml')));
+  await page.close();
+});
+
 await test('an external change resets the editor', async () => {
   const page = await open('Old text\n');
   await page.evaluate(() => {
