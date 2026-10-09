@@ -102,7 +102,11 @@ svg { flex: none; }
 .doc ul.tasks { padding-left: 0.2em; list-style: none; }
 .doc li.task { display: flex; align-items: flex-start; gap: 10px; list-style: none; }
 .doc li.task > .task-body { flex: 1; min-width: 0; }
-.cb { flex: none; display: inline-block; width: 16px; height: 16px; margin-top: 0.35em; border: 1.5px solid var(--m-faint); border-radius: 4px; cursor: pointer; user-select: none; transition: background-color 0.12s, border-color 0.12s; }
+/* A to-do's text sits in a <p> inside .task-body: give it list spacing, not paragraph spacing,
+   and centre the checkbox on the first line (line height 1.7em). */
+.doc li.task > .task-body > p { margin: 0.1em 0; }
+.doc li.task > .task-body > p:first-child { margin-top: 0; }
+.cb { flex: none; display: inline-block; width: 16px; height: 16px; margin-top: calc((1.7em - 16px) / 2); border: 1.5px solid var(--m-faint); border-radius: 4px; cursor: pointer; user-select: none; transition: background-color 0.12s, border-color 0.12s; }
 .cb:hover { border-color: var(--m-accent); }
 .cb.on { border-color: var(--m-accent-bg); background: var(--m-accent-bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E") center/12px no-repeat; }
 .doc li.task.done > .task-body { color: var(--m-muted); text-decoration: line-through; text-decoration-color: var(--m-faint); }
