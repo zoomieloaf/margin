@@ -35,9 +35,8 @@ code --install-extension zoomieloaf.margin
 
 ## Get started
 
-1. Install Margin from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=zoomieloaf.margin), or from [Open VSX](https://open-vsx.org/extension/zoomieloaf/margin) for Cursor, Windsurf and VSCodium.
-2. Open any `.md` file and click **Open in Margin** at the top right of the editor. To open every Markdown file in Margin, accept when Margin offers it, or right-click a file → Open With… → Configure default editor.
-3. Press Cmd+E / Ctrl+E to start editing, or double-click any text.
+1. Open any `.md` file and click **Open in Margin** at the top right of the editor. To open every Markdown file in Margin, accept when Margin offers it, or right-click a file → Open With… → Configure default editor.
+2. Press Cmd+E / Ctrl+E to start editing, or double-click any text.
 
 Undo is VS Code's own history, so Cmd+Z / Ctrl+Z works across Margin, the text editor and git. **Reopen in Text Editor** gives you the raw file at any time.
 
