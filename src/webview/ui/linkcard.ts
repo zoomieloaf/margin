@@ -28,6 +28,8 @@ export class LinkCard {
   private link: HTMLAnchorElement | null = null;
   private showTimer: number | undefined;
   private hideTimer: number | undefined;
+  /** False after the page lost focus or was hidden, until the pointer moves. */
+  private armed = true;
 
   constructor(private readonly host: LinkCardHost, doc: HTMLElement, parent: HTMLElement) {
     this.el = document.createElement('div');
@@ -47,13 +49,22 @@ export class LinkCard {
 
     doc.addEventListener('pointerover', (e) => {
       const a = (e.target as HTMLElement).closest?.('a');
-      if (!a || e.pointerType === 'touch' || this.host.mode !== 'edit') return;
-      window.clearTimeout(this.hideTimer);
-      if (a === this.link) return;
-      window.clearTimeout(this.showTimer);
-      this.link = a;
-      if (this.el.hidden) this.showTimer = window.setTimeout(() => this.show(), SHOW_MS);
-      else this.show(); // already showing for a neighbour: move over at once
+      if (!a || e.pointerType === 'touch') return;
+      if (this.armed) this.hover(a);
+    });
+    // The page came back (Back to this page, a tab switch, the window refocused) with the pointer
+    // resting on a link: that isn't a hover. The card waits for the pointer to really move.
+    const disarm = () => {
+      this.armed = false;
+      this.hide();
+    };
+    window.addEventListener('blur', disarm);
+    document.addEventListener('visibilitychange', () => document.hidden && disarm());
+    doc.addEventListener('pointermove', (e) => {
+      if (this.armed || (!e.movementX && !e.movementY)) return;
+      this.armed = true;
+      const a = (e.target as HTMLElement).closest?.('a');
+      if (a && e.pointerType !== 'touch') this.hover(a);
     });
     doc.addEventListener('pointerout', (e) => {
       if (!this.link || this.link.contains(e.relatedTarget as Node | null)) return;
@@ -75,6 +86,17 @@ export class LinkCard {
       else if (btn.dataset.act === 'edit') this.host.editLink(a);
       else if (btn.dataset.act === 'copy') this.host.copyHref(href);
     });
+  }
+
+  /** The pointer is on link `a`: show the card for it after a moment (at once when moving between links). */
+  private hover(a: HTMLAnchorElement): void {
+    if (this.host.mode !== 'edit') return;
+    window.clearTimeout(this.hideTimer);
+    if (a === this.link) return;
+    window.clearTimeout(this.showTimer);
+    this.link = a;
+    if (this.el.hidden) this.showTimer = window.setTimeout(() => this.show(), SHOW_MS);
+    else this.show(); // already showing for a neighbour: move over at once
   }
 
   hide(): void {

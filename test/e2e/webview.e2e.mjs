@@ -401,6 +401,25 @@ async function hoverLink(page, n) {
   await page.waitForSelector('.linkcard:not([hidden])', { timeout: 2000 });
 }
 
+await test('coming back to the page with the pointer resting on a link shows no card until the pointer moves', async () => {
+  const page = await open(LINKS);
+  const at = await charXY(page, '.ProseMirror a', 0, 1);
+  // Like Back to this page: the window lost focus, and the pointer is already over the link.
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await page.evaluate(({ x, y }) => {
+    const target = document.elementFromPoint(x, y);
+    target.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse', clientX: x, clientY: y }));
+  }, at);
+  await sleep(600);
+  assert.equal(await page.$eval('.linkcard', (e) => e.hidden), true, 'no card without a real move');
+  // The first real move over the link shows it.
+  await page.mouse.move(at.x - 1, at.y);
+  await page.mouse.move(at.x + 1, at.y);
+  await page.waitForSelector('.linkcard:not([hidden])', { timeout: 2000 });
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
 await test('hovering a link in Edit mode shows a card: Open, Copy link and Edit link work', async () => {
   const page = await open(LINKS);
   await page.evaluate(() => {
