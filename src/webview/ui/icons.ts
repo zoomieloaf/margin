@@ -15,6 +15,7 @@ const P: Record<string, string> = {
   minus: '<path d="M4 12h16"/>',
   undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>',
   redo: '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>',
+  width: '<path d="M3 4v16M21 4v16M7 12h10M9.5 9.5 7 12l2.5 2.5M14.5 9.5 17 12l-2.5 2.5"/>',
   panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M17.5 8.5h1M17.5 12h1"/>',
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   sparkles: '<path d="M11 3.5 12.8 8l4.7 1.8-4.7 1.8L11 16l-1.8-4.4L4.5 9.8 9.2 8z"/><path d="M18.5 14v5M16 16.5h5"/>',

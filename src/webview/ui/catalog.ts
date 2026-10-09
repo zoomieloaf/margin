@@ -1,4 +1,4 @@
-import type { AiAction } from '../../bridge/messages';
+import { PAGE_WIDTH_LABEL, PAGE_WIDTHS, type AiAction, type PageWidth } from '../../bridge/messages';
 import type { BlockType, InsertKind, TableActionId } from '../editor/commands';
 
 export interface MenuItem {
@@ -85,6 +85,14 @@ export const AI_LANGUAGES = ['English', 'Russian', 'German', 'French', 'Spanish'
 /** The Translate to… submenu: item ids are `lang:<Language>`, and `lang:` for Other…. */
 export function translateGroups(): MenuGroup[] {
   return [{ title: 'Translate to', items: [...AI_LANGUAGES.map((l) => ({ id: `lang:${l}`, label: l })), { id: 'lang:', label: 'Other…' }] }];
+}
+
+/** The toolbar's width menu: the four widths (ids are the bridge's PageWidth), then `default` (the setting, named). */
+export function pageWidthGroups(setting: PageWidth): MenuGroup[] {
+  return [
+    { title: 'Page width', items: PAGE_WIDTHS.map((w) => ({ id: w, label: PAGE_WIDTH_LABEL[w] })) },
+    { items: [{ id: 'default', label: `Use default (${PAGE_WIDTH_LABEL[setting]})` }] },
+  ];
 }
 
 export const BLOCK_ACTIONS: MenuGroup = {

@@ -75,7 +75,15 @@ svg { flex: none; }
 /* ---------------------------------------------------------------- document */
 .editor-body { flex: 1; display: flex; min-height: 0; position: relative; }
 .scroll { flex: 1; overflow: auto; min-width: 0; }
-.doc-wrap { position: relative; max-width: 860px; margin: 0 auto; padding: 32px 72px 160px; }
+/* Page width (margin.pageWidth, or the file's own choice): the text column, plus side padding that
+   leaves room for the block handles. Full width fills the editor, beside the outline when it shows. */
+.app { --m-column: 716px; --m-pad-x: 72px; }
+.app[data-width="narrow"] { --m-column: 600px; }
+.app[data-width="wide"] { --m-column: 1000px; }
+.doc-wrap { position: relative; max-width: calc(var(--m-column) + 2 * var(--m-pad-x)); margin: 0 auto; padding: 32px var(--m-pad-x) 160px; }
+.app[data-width="full"] .doc-wrap { max-width: 100%; }
+/* Only after the page opened (see main.ts); none with reduced motion (the rule at the end). */
+.app.width-anim .doc-wrap { transition: max-width 0.2s ease; }
 .doc { outline: none; font: 15px/1.7 var(--f-doc); color: var(--m-fg); caret-color: var(--m-accent); overflow-wrap: break-word; white-space: pre-wrap; }
 .app[data-mode="preview"] .doc { cursor: default; }
 .doc ::selection { background: var(--m-sel); }
@@ -223,7 +231,8 @@ body.vscode-high-contrast .pop, body.vscode-high-contrast .callout, body.vscode-
   .outline { position: absolute; right: 0; top: 0; bottom: 0; z-index: 6; box-shadow: var(--m-shadow); }
 }
 @media (max-width: 640px) {
-  .doc-wrap { padding: 22px 18px 120px; }
+  .app { --m-pad-x: 18px; }
+  .doc-wrap { padding: 22px var(--m-pad-x) 120px; }
   .gutter { display: none !important; }
   .seg button span, .tb.primary span, .tb-hint { display: none !important; }
 }

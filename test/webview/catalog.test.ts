@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AI_ACTIONS } from '../../src/bridge/messages';
-import { AI_LANGUAGES, aiGroups, slashGroups, translateGroups } from '../../src/webview/ui/catalog';
+import { AI_LANGUAGES, aiGroups, pageWidthGroups, slashGroups, translateGroups } from '../../src/webview/ui/catalog';
 
 const ids = (groups: ReturnType<typeof aiGroups>) => groups.flatMap((g) => g.items.map((i) => i.id));
 
@@ -33,5 +33,15 @@ describe('slash menu', () => {
     expect(labels('', true).slice(-2)).toEqual(['Continue writing', 'Ask AI…']);
     expect(labels('ai', false)).not.toContain('Continue writing');
     expect(labels('', false)).not.toContain('Ask AI…');
+  });
+});
+
+describe('page width menu', () => {
+  it('lists the four widths, then Use default naming the setting', () => {
+    const groups = pageWidthGroups('wide');
+    expect(groups.map((g) => g.items.map((i) => [i.id, i.label]))).toEqual([
+      [['narrow', 'Narrow'], ['normal', 'Normal'], ['wide', 'Wide'], ['full', 'Full width']],
+      [['default', 'Use default (Wide)']],
+    ]);
   });
 });

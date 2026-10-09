@@ -8,7 +8,9 @@ import { DOMSerializer, type Node as PmNode } from 'prosemirror-model';
 import { EditorState, Selection, TextSelection, type Transaction } from 'prosemirror-state';
 import { tableEditing } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
-import { MAX_CHECKED_LINKS, type AiAction, type AiSetting, type HostToWebview, type Mode, type WebviewToHost } from '../bridge/messages';
+import {
+  isPageWidth, MAX_CHECKED_LINKS, resolvePageWidth, type AiAction, type AiSetting, type HostToWebview, type Mode, type PageWidthState, type WebviewToHost,
+} from '../bridge/messages';
 import { activeState, clickTask, insertBlock, setBlock, toggleInline, type BlockType, type InsertKind, type MarkName } from './editor/commands';
 import { findAnchor } from './editor/anchors';
 import { uniqueIds } from './editor/ids';
@@ -20,7 +22,7 @@ import { schema } from './editor/schema';
 import { AiAssist } from './ui/aibox';
 import type { AppApi } from './ui/api';
 import { Bubble } from './ui/bubble';
-import { aiGroups, BLOCKS, EXPORTS, translateGroups } from './ui/catalog';
+import { aiGroups, BLOCKS, EXPORTS, pageWidthGroups, translateGroups } from './ui/catalog';
 import { installTooltips, toast } from './ui/feedback';
 import { Handles } from './ui/handles';
 import { LinkCard, type LinkCardHost } from './ui/linkcard';
@@ -57,6 +59,10 @@ class App implements AppApi, LinkCardHost {
   private readonly outline: Outline;
   private readonly linkCard: LinkCard;
   private readonly ai: AiAssist;
+  private readonly handles: Handles;
+  private readonly wrap: HTMLElement;
+  /** The page's width and where it comes from (a per-file choice or the margin.pageWidth setting). */
+  private pageWidth: PageWidthState = resolvePageWidth(null, 'normal');
   private linkStatus: LinkStatus = { missing: new Set(), paths: new Map() };
   private linkTimer: number | undefined;
   /** The local links last sent to the host, one per line. */
@@ -83,6 +89,7 @@ class App implements AppApi, LinkCardHost {
     this.scroll.className = 'scroll';
     const wrap = document.createElement('div');
     wrap.className = 'doc-wrap';
+    this.wrap = wrap;
     const mount = document.createElement('div');
     this.source = document.createElement('textarea');
     this.source.className = 'source';
@@ -146,7 +153,11 @@ class App implements AppApi, LinkCardHost {
     });
     this.bubble = new Bubble(this, document.body);
     this.linkCard = new LinkCard(this, this.view.dom, document.body);
-    new Handles(this, this.scroll, wrap);
+    this.handles = new Handles(this, this.scroll, wrap);
+    // The column has its new width: put the bubble back over the selection, regrow the textarea.
+    wrap.addEventListener('transitionend', (e) => {
+      if (e.target === wrap && e.propertyName === 'max-width') this.widthSettled();
+    });
     installTooltips(document.body);
 
     window.addEventListener('message', (e: MessageEvent<HostToWebview>) => this.receive(e.data));
@@ -288,6 +299,10 @@ class App implements AppApi, LinkCardHost {
         this.baseUri = m.baseUri;
         this.configureAi(m.settings.ai ?? 'auto', m.settings.aiEditor ?? false);
         this.outline.visible = m.settings.outlineVisible && innerWidth >= 900;
+        this.setPageWidth(m.settings.pageWidthState ?? resolvePageWidth(null, m.settings.pageWidth));
+        // Animated from now on: the page doesn't visibly resize while it opens.
+        void this.wrap.offsetWidth;
+        this.root.classList.add('width-anim');
         this.load(this.model.load(m.text, m.version), false);
         this.setMode(m.mode);
         if (m.anchor) {
@@ -338,6 +353,9 @@ class App implements AppApi, LinkCardHost {
         break;
       case 'aiAvailable':
         this.configureAi(m.setting ?? this.ai.setting, m.editor);
+        break;
+      case 'setPageWidth':
+        this.setPageWidth(resolvePageWidth(m.override, m.setting));
         break;
     }
   }
@@ -408,6 +426,9 @@ class App implements AppApi, LinkCardHost {
         this.outline.visible = !this.outline.visible;
         this.refreshUi(false);
         return;
+      case 'width':
+        this.menu.open(at, pageWidthGroups(this.pageWidth.setting), (id) => this.pickPageWidth(id), { anchor, active: this.pageWidth.override ?? 'default' });
+        return;
       case 'export':
         this.menu.open(at, EXPORTS, (id) => this.exportAction(id), { rich: true, anchor });
         return;
@@ -420,6 +441,30 @@ class App implements AppApi, LinkCardHost {
         return;
     }
     if (this.mode === 'edit') view.focus();
+  }
+
+  /** A width from the menu (or `default`): shown at once, and the host keeps it for this file. */
+  private pickPageWidth(id: string): void {
+    const value = isPageWidth(id) ? id : null;
+    this.setPageWidth(resolvePageWidth(value, this.pageWidth.setting));
+    post({ type: 'pageWidth', value });
+  }
+
+  /** Sets the column width (CSS on .app[data-width]); nothing in the document changes. */
+  private setPageWidth(state: PageWidthState): void {
+    this.pageWidth = state;
+    if (this.root.dataset.width === state.width) return;
+    this.root.dataset.width = state.width;
+    // Handles and the link card point at where blocks were; they come back on the next hover.
+    this.handles.hide();
+    this.linkCard.hide();
+    // Without a transition (reduced motion, or no change in px) no transitionend comes.
+    requestAnimationFrame(() => this.widthSettled());
+  }
+
+  private widthSettled(): void {
+    this.bubble.update(this.view, false);
+    if (this.mode === 'source') this.autoGrow();
   }
 
   get aiEnabled(): boolean {

@@ -43,6 +43,7 @@ const TEMPLATE = `
   <button type="button" class="tb ai" data-act="ai" aria-haspopup="menu" data-tip="AI actions">${icon('sparkles')}<span>AI</span>${icon('chev', 'chev')}</button>
 </div>
 <div class="tb-spacer"></div>
+${btn('width', 'width', 'Page width', '', 'aria-haspopup="menu"')}
 ${btn('outline', 'panel', 'Outline', '', 'aria-pressed="false"')}
 <button type="button" class="tb primary" data-act="export" aria-haspopup="menu">${icon('download')}<span>Export</span>${icon('chev', 'chev')}</button>
 `;
