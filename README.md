@@ -113,6 +113,7 @@ npm test                  # unit tests: Markdown layer, editor model, commands, 
 npm run e2e               # the built editor in Edge/Chrome with real mouse and keyboard input
 npm run test:integration  # inside VS Code: custom editor, sync, export
 npm run package           # builds margin-<version>.vsix
+npm run demo              # records media/demo.gif in an isolated VS Code with that vsix
 ```
 
 Press F5 in VS Code to start an Extension Development Host.

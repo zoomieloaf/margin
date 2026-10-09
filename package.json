@@ -315,6 +315,7 @@
     "typecheck": "tsc --noEmit",
     "icon": "node scripts/icon.mjs",
     "package": "npm run build:prod && vsce package --no-dependencies",
+    "demo": "npm run package && node scripts/demo/record.mjs",
     "publish:vscode": "vsce publish --no-dependencies",
     "publish:ovsx": "ovsx publish --no-dependencies",
     "fixtures:make": "node scripts/make-fixtures.mjs",
@@ -352,8 +353,10 @@
     "@vscode/test-electron": "2.5.2",
     "@vscode/vsce": "3.9.2",
     "esbuild": "0.24.2",
+    "gifenc": "1.0.3",
     "jsdom": "25.0.1",
     "ovsx": "0.10.12",
+    "pngjs": "7.0.0",
     "puppeteer-core": "23.11.1",
     "typescript": "5.9.3",
     "vitest": "2.1.9"
