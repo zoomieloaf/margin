@@ -14,10 +14,14 @@
   "keywords": [
     "markdown",
     "wysiwyg",
-    "notion",
     "editor",
     "preview",
-    "pdf"
+    "docs",
+    "documentation",
+    "knowledge base",
+    "writing",
+    "pdf",
+    "export"
   ],
   "engines": {
     "node": ">=20",
