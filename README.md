@@ -40,6 +40,36 @@ code --install-extension zoomieloaf.margin
 
 Undo is VS Code's own history, so Cmd+Z / Ctrl+Z works across Margin, the text editor and git. **Reopen in Text Editor** gives you the raw file at any time.
 
+## Guide
+
+### Your file stays yours
+
+Blocks you didn't touch are written back byte-for-byte: spacing, list markers, emphasis style and line endings. An edited block is written in the style the file already uses. Frontmatter, raw HTML, footnote definitions and math are shown read-only and kept exactly as written; edit them in Markdown mode. The test suite opens and saves 33 real-world files, popular READMEs among them, and every one must come back unchanged.
+
+### Writing
+
+- Type `/` on an empty line for headings, lists, to-dos, quotes, callouts, code, tables, dividers and diagrams. Each item shows its Markdown.
+- Markdown shortcuts work as you type: `#`, `-`, `1.`, `>`, `[]`, `` ``` `` and `---`.
+- Hover a block and drag its handle to move it, or click the handle to duplicate or delete it.
+- In tables, Tab moves to the next cell, and Tab in the last cell adds a row. The block handle adds a row below or a column on the right, and deletes rows or columns.
+- GitHub callouts (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`…) and checkboxes you can tick even in Preview.
+
+### Links and pages
+
+- A link to `./setup.md`, `../guides/` or `/docs/faq.md#install` opens that page in Margin, scrolled to the heading. A folder opens its `README.md` or `index.md`.
+- A click opens a link, in Edit mode too. To edit a link's text, click just after it; hovering shows Open, Edit link and Copy link.
+- Linked pages reuse one tab while you click through, unless you change `margin.links.openIn`; editing a page keeps its tab.
+- A link to a missing file gets a red underline. Click it to create the page.
+- Back (Alt+←, Ctrl+- on macOS, or the mouse's back button) returns from a `#section` jump first, then to the previous page.
+
+### AI
+
+Improve writing, Shorten, Make longer, Fix spelling and grammar, Translate, Summarize, Continue writing, or Ask AI with your own instruction: from AI in the toolbar, ✨ in the selection menu, or `/ai`. With Copilot the answer appears under your text; Accept replaces it in one undo step. Elsewhere, paste the chat's answer back and it turns into formatted blocks.
+
+### Export
+
+PDF uses the Edge or Chrome already on your machine, so there's nothing to download. HTML is a single file. Copy as rich text for Slack, email or Confluence, or copy as Markdown.
+
 ## Keyboard shortcuts
 
 | Action | Windows / Linux | macOS |
@@ -81,36 +111,6 @@ Text leaves your machine only when you run an AI action, and only what that acti
 - With GitHub Copilot in VS Code, the text goes to Copilot through VS Code, under your Copilot account.
 - Otherwise a chat opens with the prompt: Copilot Chat in VS Code, a new chat in Cursor, or chatgpt.com or claude.ai in your browser. Nothing is sent until you press Enter there.
 - `margin.ai: off` hides AI actions completely.
-
-## Guide
-
-### Your file stays yours
-
-Blocks you didn't touch are written back byte-for-byte: spacing, list markers, emphasis style and line endings. An edited block is written in the style the file already uses. Frontmatter, raw HTML, footnote definitions and math are shown read-only and kept exactly as written; edit them in Markdown mode. The test suite opens and saves 33 real-world files, popular READMEs among them, and every one must come back unchanged.
-
-### Writing
-
-- Type `/` on an empty line for headings, lists, to-dos, quotes, callouts, code, tables, dividers and diagrams. Each item shows its Markdown.
-- Markdown shortcuts work as you type: `#`, `-`, `1.`, `>`, `[]`, `` ``` `` and `---`.
-- Hover a block and drag its handle to move it, or click the handle to duplicate or delete it.
-- In tables, Tab moves to the next cell, and Tab in the last cell adds a row. The block handle adds a row below or a column on the right, and deletes rows or columns.
-- GitHub callouts (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`…) and checkboxes you can tick even in Preview.
-
-### Links and pages
-
-- A link to `./setup.md`, `../guides/` or `/docs/faq.md#install` opens that page in Margin, scrolled to the heading. A folder opens its `README.md` or `index.md`.
-- A click opens a link, in Edit mode too. To edit a link's text, click just after it; hovering shows Open, Edit link and Copy link.
-- Linked pages reuse one tab while you click through, unless you change `margin.links.openIn`; editing a page keeps its tab.
-- A link to a missing file gets a red underline. Click it to create the page.
-- Back (Alt+←, Ctrl+- on macOS, or the mouse's back button) returns from a `#section` jump first, then to the previous page.
-
-### AI
-
-Improve writing, Shorten, Make longer, Fix spelling and grammar, Translate, Summarize, Continue writing, or Ask AI with your own instruction: from AI in the toolbar, ✨ in the selection menu, or `/ai`. With Copilot the answer appears under your text; Accept replaces it in one undo step. Elsewhere, paste the chat's answer back and it turns into formatted blocks.
-
-### Export
-
-PDF uses the Edge or Chrome already on your machine, so there's nothing to download. HTML is a single file. Copy as rich text for Slack, email or Confluence, or copy as Markdown.
 
 ## License
 
