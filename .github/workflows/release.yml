@@ -56,6 +56,13 @@ jobs:
       - name: Build the .vsix
         run: npm run package
 
+      # First, so the .vsix is on GitHub even if a store refuses it.
+      - name: GitHub release with the .vsix
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "margin-${{ steps.version.outputs.version }}.vsix" --title "Margin ${{ steps.version.outputs.version }}" --notes-file release-notes.md
+
       # Without a VSCE_PAT secret, upload the .vsix from the GitHub release by hand at
       # https://marketplace.visualstudio.com/manage/publishers/zoomieloaf (Update → upload).
       - name: Publish to the VS Code Marketplace
@@ -73,13 +80,12 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           OVSX_PAT: ${{ secrets.OVSX_PAT }}
-        run: npx ovsx publish "margin-${{ steps.version.outputs.version }}.vsix"
-
-      - name: GitHub release with the .vsix
-        if: github.ref_type == 'tag'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "margin-${{ steps.version.outputs.version }}.vsix" --title "Margin ${{ steps.version.outputs.version }}" --notes-file release-notes.md
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::warning::No OVSX_PAT secret: Open VSX was skipped. Add the secret, or upload margin-${{ steps.version.outputs.version }}.vsix at open-vsx.org."
+            exit 0
+          fi
+          npx ovsx publish "margin-${{ steps.version.outputs.version }}.vsix"
 
       - name: Keep the .vsix of a dry run
         if: github.ref_type != 'tag'
