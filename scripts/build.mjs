@@ -1,4 +1,5 @@
 import * as esbuild from 'esbuild';
+import { writeNotices } from './notices.mjs';
 
 const watch = process.argv.includes('--watch');
 const production = process.argv.includes('--production');
@@ -29,5 +30,7 @@ if (watch) {
   const contexts = await Promise.all([esbuild.context(host), esbuild.context(webview)]);
   await Promise.all(contexts.map((c) => c.watch()));
 } else {
-  await Promise.all([esbuild.build(host), esbuild.build(webview)]);
+  const results = await Promise.all([esbuild.build({ ...host, metafile: production }), esbuild.build({ ...webview, metafile: production })]);
+  // A release build also lists the licenses of everything it bundled (shipped in the .vsix).
+  if (production) console.log(`THIRD-PARTY-NOTICES.txt: ${writeNotices(results.map((r) => r.metafile))} packages`);
 }
