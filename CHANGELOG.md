@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- A tidier extension page: no install instructions on the page you install from, and the guide right after Get started.
+
 ## 0.1.1
 
 - Margin no longer offers to become the default Markdown editor from a diff, or when you've already chosen an editor for Markdown files.
