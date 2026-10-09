@@ -991,6 +991,8 @@ await test('page width: setPageWidth from the host applies; block handles and th
 await test('page width: the width change is animated, except with reduced motion', async () => {
   const page = await open(WIDTH_DOC, 'preview', { pageWidth: widthState('normal') }, WIDE_SCREEN);
   const duration = () => page.$eval('.doc-wrap', (e) => getComputedStyle(e).transitionDuration);
+  // Set explicitly: machines with animations turned off (CI runners, for one) report "reduce" by default.
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'no-preference' }]);
   assert.notEqual(await duration(), '0s');
   await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
   assert.equal(await duration(), '0s');
