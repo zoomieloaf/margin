@@ -45,6 +45,21 @@ export function resolvePageWidth(override: unknown, setting: unknown): PageWidth
   return { width: o ?? s, setting: s, override: o };
 }
 
+/** The `margin.links.openIn` setting: linked pages replace the preview tab, or each gets a tab of its own. */
+export const LINKS_OPEN_IN = ['sameTab', 'newTab'] as const;
+export type LinksOpenIn = (typeof LINKS_OPEN_IN)[number];
+
+export const isLinksOpenIn = (x: unknown): x is LinksOpenIn => typeof x === 'string' && (LINKS_OPEN_IN as readonly string[]).includes(x);
+
+/**
+ * Whether a followed link opens in a tab of its own: what the webview asked for (`newTab`, sent for
+ * Ctrl/Cmd+click and the hover card's other Open button), otherwise the setting (sameTab when unknown).
+ */
+export const linkOpensNewTab = (setting: unknown, newTab?: boolean): boolean => newTab ?? setting === 'newTab';
+
+/** The toolbar's Back and Forward, mouse buttons 4 and 5, and Alt+Left: VS Code's Go Back / Go Forward. */
+export type NavDirection = 'back' | 'forward';
+
 export interface WebviewSettings {
   outlineVisible: boolean;
   /** The width the page opens at (`pageWidthState` says where it comes from). */
@@ -53,6 +68,8 @@ export interface WebviewSettings {
   ai: AiSetting;
   /** The editor offers a language model (Copilot in VS Code): AI actions run in place. */
   aiEditor: boolean;
+  /** The `margin.links.openIn` setting (labels the hover card's other Open button). */
+  linksOpenIn: LinksOpenIn;
 }
 
 /** Messages the webview sends to the extension host. */
@@ -64,7 +81,10 @@ export type WebviewToHost =
   | { type: 'redo' }
   | { type: 'mode'; mode: Mode }
   | { type: 'stats'; words: number }
-  | { type: 'openLink'; href: string }
+  /** `newTab`: the user asked for a tab of its own (true) or the preview tab (false); absent: the setting decides. */
+  | { type: 'openLink'; href: string; newTab?: boolean }
+  /** Runs VS Code's Go Back / Go Forward. */
+  | { type: 'navigate'; direction: NavDirection }
   /** Which of these local link targets exist? The host answers with `linkStatus`. */
   | { type: 'checkLinks'; hrefs: string[] }
   | { type: 'exportPdf' }
@@ -104,7 +124,9 @@ export type HostToWebview =
   /** Whether the editor offers a language model; `setting` when `margin.ai` changed. */
   | { type: 'aiAvailable'; editor: boolean; setting?: AiSetting }
   /** The page width changed (the file's choice or the `margin.pageWidth` setting). */
-  | ({ type: 'setPageWidth' } & PageWidthState);
+  | ({ type: 'setPageWidth' } & PageWidthState)
+  /** The `margin.links.openIn` setting changed. */
+  | { type: 'linksOpenIn'; value: LinksOpenIn };
 
 /** More links than this in one `checkLinks` is not a document someone wrote by hand: refused. */
 export const MAX_CHECKED_LINKS = 2000;
@@ -141,7 +163,9 @@ export function isWebviewMessage(x: unknown): x is WebviewToHost {
     case 'stats':
       return isInt(x.words);
     case 'openLink':
-      return typeof x.href === 'string';
+      return typeof x.href === 'string' && (x.newTab === undefined || typeof x.newTab === 'boolean');
+    case 'navigate':
+      return x.direction === 'back' || x.direction === 'forward';
     case 'checkLinks':
       return Array.isArray(x.hrefs) && x.hrefs.length <= MAX_CHECKED_LINKS && x.hrefs.every((h) => typeof h === 'string');
     case 'log':

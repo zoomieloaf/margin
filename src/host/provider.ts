@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { isWebviewMessage, resolvePageWidth, type HostToWebview, type Mode, type PageWidth, type PageWidthState, type WebviewToHost } from '../bridge/messages';
+import { isLinksOpenIn, isWebviewMessage, resolvePageWidth, type LinksOpenIn, type HostToWebview, type Mode, type PageWidth, type PageWidthState, type WebviewToHost } from '../bridge/messages';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
 import { AiService, AiSession } from './ai/service';
 import { checkLinks, followLink, type Pages } from './navigate';
@@ -119,6 +119,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
               pageWidthState: width,
               ai: this.ai.setting,
               aiEditor: this.ai.available,
+              linksOpenIn: linksOpenIn(),
             },
             baseUri: panel.webview.asWebviewUri(docDir).toString() + '/',
             ...(anchor ? { anchor } : {}),
@@ -301,5 +302,11 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
     this.changed.fire(s);
   }
 }
+
+/** The `margin.links.openIn` setting (sameTab when unset or unknown). */
+const linksOpenIn = (): LinksOpenIn => {
+  const v = vscode.workspace.getConfiguration('margin').get('links.openIn');
+  return isLinksOpenIn(v) ? v : 'sameTab';
+};
 
 const report = (err: unknown) => console.error('[margin]', err);

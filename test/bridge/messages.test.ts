@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AI_ACTIONS, isPageWidth, isWebviewMessage, MAX_AI_TEXT, MAX_CHECKED_LINKS, PAGE_WIDTHS, resolvePageWidth } from '../../src/bridge/messages';
+import { AI_ACTIONS, isLinksOpenIn, isPageWidth, isWebviewMessage, linkOpensNewTab, LINKS_OPEN_IN, MAX_AI_TEXT, MAX_CHECKED_LINKS, PAGE_WIDTHS, resolvePageWidth } from '../../src/bridge/messages';
 
 describe('isWebviewMessage', () => {
   it.each([
@@ -121,5 +121,44 @@ describe('page width', () => {
     expect(resolvePageWidth('huge', 'wide')).toEqual({ width: 'wide', setting: 'wide', override: null });
     expect(resolvePageWidth(undefined, 'bogus')).toEqual({ width: 'normal', setting: 'normal', override: null });
     expect(resolvePageWidth('full', 42)).toEqual({ width: 'full', setting: 'normal', override: 'full' });
+  });
+});
+
+describe('navigation and links', () => {
+  it.each([
+    { type: 'navigate', direction: 'back' },
+    { type: 'navigate', direction: 'forward' },
+    { type: 'openLink', href: './a.md', newTab: true },
+    { type: 'openLink', href: './a.md', newTab: false },
+  ])('accepts %j', (m) => {
+    expect(isWebviewMessage(m)).toBe(true);
+  });
+
+  it.each([
+    { type: 'navigate' },
+    { type: 'navigate', direction: 'up' },
+    { type: 'navigate', direction: 1 },
+    { type: 'openLink', href: './a.md', newTab: 'yes' },
+    { type: 'openLink', href: './a.md', newTab: null },
+  ])('rejects %j', (m) => {
+    expect(isWebviewMessage(m)).toBe(false);
+  });
+
+  it('isLinksOpenIn knows sameTab and newTab', () => {
+    expect(LINKS_OPEN_IN).toEqual(['sameTab', 'newTab']);
+    for (const v of LINKS_OPEN_IN) expect(isLinksOpenIn(v)).toBe(true);
+    for (const x of [undefined, null, '', 'newtab', 'tab', 1]) expect(isLinksOpenIn(x)).toBe(false);
+  });
+
+  it('a link follows the setting unless the webview asked for the other tab', () => {
+    expect(linkOpensNewTab('sameTab')).toBe(false);
+    expect(linkOpensNewTab('newTab')).toBe(true);
+    // Ctrl/Cmd+click or the hover card's other Open button: the opposite of the setting.
+    expect(linkOpensNewTab('sameTab', true)).toBe(true);
+    expect(linkOpensNewTab('newTab', false)).toBe(false);
+    expect(linkOpensNewTab('sameTab', false)).toBe(false);
+    // An unknown setting is the default, sameTab.
+    expect(linkOpensNewTab(undefined)).toBe(false);
+    expect(linkOpensNewTab('bogus')).toBe(false);
   });
 });
