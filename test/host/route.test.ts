@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AI_SETTINGS } from '../../src/bridge/messages';
-import { aiSetting, chatCommandFor, chatUrl, chooseRoute, destination, MAX_URL, pickModel, type RouteInput } from '../../src/host/ai/route';
+import { aiSetting, chatCommandFor, chatUrl, chooseRoute, cursorPromptUrl, destination, MAX_CURSOR_URL, MAX_URL, pickModel, type RouteInput } from '../../src/host/ai/route';
 
 const input = (over: Partial<RouteInput>): RouteInput => ({ setting: 'auto', hasModel: false, appName: 'Visual Studio Code', hasChatCommand: false, ...over });
 
@@ -51,6 +51,20 @@ describe('chatCommandFor', () => {
 
   it('VSCodium without a chat: none', () => {
     expect(chatCommandFor('VSCodium', [])).toBeUndefined();
+  });
+});
+
+describe('cursorPromptUrl', () => {
+  it("fills Cursor's chat through its prompt deeplink, with & and newlines encoded", () => {
+    expect(cursorPromptUrl('cursor', 'Fix this & that\nplease')).toBe('cursor://anysphere.cursor-deeplink/prompt?text=Fix%20this%20%26%20that%0Aplease');
+  });
+
+  it('drops the invisible characters Cursor refuses', () => {
+    expect(cursorPromptUrl('cursor', '﻿a​b\u007F')).toBe('cursor://anysphere.cursor-deeplink/prompt?text=ab');
+  });
+
+  it('none for a prompt too long for a link', () => {
+    expect(cursorPromptUrl('cursor', 'x'.repeat(MAX_CURSOR_URL))).toBeUndefined();
   });
 });
 

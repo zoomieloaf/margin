@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { AiRequest, AiSetting, HostToWebview } from '../../bridge/messages';
 import { aiPrompt, chatPrompt } from './prompts';
-import { aiSetting, chatCommandFor, chatUrl, chooseRoute, destination, pickModel, type ChatTarget, type Route } from './route';
+import { aiSetting, chatCommandFor, chatUrl, chooseRoute, cursorPromptUrl, destination, isCursor, pickModel, type ChatTarget, type Route } from './route';
 
 /** What the AI actions use from VS Code. The integration tests replace parts of it (margin._test.stubAi). */
 export interface AiEnv {
@@ -28,6 +28,12 @@ export const realEnv: AiEnv = {
   openChat: async (prompt) => {
     const chat = await chatCommand();
     if (!chat) throw new Error('no chat view');
+    // Cursor: its prompt deeplink fills the chat in; only a prompt too long for a link is pasted.
+    const deeplink = isCursor(vscode.env.appName) ? cursorPromptUrl(vscode.env.uriScheme, prompt) : undefined;
+    if (deeplink) {
+      await vscode.env.openExternal(deeplink as unknown as vscode.Uri);
+      return true;
+    }
     if (chat.takesQuery) await vscode.commands.executeCommand(chat.command, { query: prompt });
     else await vscode.commands.executeCommand(chat.command);
     return chat.takesQuery;
@@ -163,7 +169,7 @@ export class AiService implements vscode.Disposable {
       await this.env.openExternal(chatUrl(target, prompt));
     }
     post({ type: 'aiFallback', id: req.id });
-    // Cursor's chat can't be given the prompt: it is pasted there, and the answer pasted back here.
+    // A chat that couldn't be given the prompt (Cursor, for a prompt too long for a link): it is pasted there.
     if (prefilled) post({ type: 'toast', text: `Prompt copied, paste the answer back with ${paste}`, sub: `Opened ${opened}` });
     else post({ type: 'toast', text: `Prompt copied: press ${paste} and Enter in ${opened}`, sub: `Then paste the answer back here with ${paste}` });
   }

@@ -65,6 +65,20 @@ export function chooseRoute({ setting, hasModel, hasChatCommand }: RouteInput): 
   }
 }
 
+/** Cursor's prompt deeplinks are at most this long, encoded. */
+export const MAX_CURSOR_URL = 8000;
+
+/**
+ * Cursor's prompt deeplink: it opens Cursor's chat with the prompt filled in (the user presses
+ * Enter). Undefined when the prompt is too long for it. Cursor refuses text with invisible format
+ * characters (zero-width spaces, a BOM...), so those are dropped. `scheme`: `vscode.env.uriScheme`.
+ */
+export function cursorPromptUrl(scheme: string, prompt: string): string | undefined {
+  const text = prompt.replace(/[\p{Cf}\u007F]/gu, '');
+  const url = `${scheme}://anysphere.cursor-deeplink/prompt?text=${encodeURIComponent(text)}`;
+  return url.length <= MAX_CURSOR_URL ? url : undefined;
+}
+
 /** The chat site, with the prompt filled in when the URL stays short enough. */
 export function chatUrl(target: Exclude<ChatTarget, 'editor'>, prompt: string): string {
   const site = SITES[target];
