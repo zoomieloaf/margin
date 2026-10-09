@@ -22,8 +22,34 @@ export interface AiRequest {
   context?: string;
 }
 
+/** Widths of the text column, narrowest first (the `margin.pageWidth` setting and the per-file choice). */
+export const PAGE_WIDTHS = ['narrow', 'normal', 'wide', 'full'] as const;
+export type PageWidth = (typeof PAGE_WIDTHS)[number];
+
+/** Menu and quick pick labels. */
+export const PAGE_WIDTH_LABEL: Record<PageWidth, string> = { narrow: 'Narrow', normal: 'Normal', wide: 'Wide', full: 'Full width' };
+
+export const isPageWidth = (x: unknown): x is PageWidth => typeof x === 'string' && (PAGE_WIDTHS as readonly string[]).includes(x);
+
+/** The width a page shows at: the file's own choice (`override`) when it has one, otherwise the setting. */
+export interface PageWidthState {
+  width: PageWidth;
+  setting: PageWidth;
+  override: PageWidth | null;
+}
+
+/** Combines a stored per-file choice and the setting, ignoring values that aren't a width. */
+export function resolvePageWidth(override: unknown, setting: unknown): PageWidthState {
+  const s = isPageWidth(setting) ? setting : 'normal';
+  const o = isPageWidth(override) ? override : null;
+  return { width: o ?? s, setting: s, override: o };
+}
+
 export interface WebviewSettings {
   outlineVisible: boolean;
+  /** The width the page opens at (`pageWidthState` says where it comes from). */
+  pageWidth: PageWidth;
+  pageWidthState: PageWidthState;
   ai: AiSetting;
   /** The editor offers a language model (Copilot in VS Code): AI actions run in place. */
   aiEditor: boolean;
@@ -53,7 +79,9 @@ export type WebviewToHost =
   /** Runs an AI action; the host answers with `aiChunk`s then `aiDone`, or `aiError`, or `aiFallback`. */
   | ({ type: 'ai' } & AiRequest)
   /** Stops that AI action (Stop, Discard, Esc, a mode change, a reset). */
-  | { type: 'aiCancel'; id: string };
+  | { type: 'aiCancel'; id: string }
+  /** The user picked a width for this file; null goes back to the `margin.pageWidth` setting. */
+  | { type: 'pageWidth'; value: PageWidth | null };
 
 /** Messages the extension host sends to the webview. */
 export type HostToWebview =
@@ -74,7 +102,9 @@ export type HostToWebview =
   /** The prompt was copied and a chat opened instead: the webview closes the suggestion. */
   | { type: 'aiFallback'; id: string }
   /** Whether the editor offers a language model; `setting` when `margin.ai` changed. */
-  | { type: 'aiAvailable'; editor: boolean; setting?: AiSetting };
+  | { type: 'aiAvailable'; editor: boolean; setting?: AiSetting }
+  /** The page width changed (the file's choice or the `margin.pageWidth` setting). */
+  | ({ type: 'setPageWidth' } & PageWidthState);
 
 /** More links than this in one `checkLinks` is not a document someone wrote by hand: refused. */
 export const MAX_CHECKED_LINKS = 2000;
@@ -120,6 +150,8 @@ export function isWebviewMessage(x: unknown): x is WebviewToHost {
       return isAi(x);
     case 'aiCancel':
       return isId(x.id);
+    case 'pageWidth':
+      return x.value === null || isPageWidth(x.value);
     default:
       return false;
   }

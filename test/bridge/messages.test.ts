@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AI_ACTIONS, isWebviewMessage, MAX_AI_TEXT, MAX_CHECKED_LINKS } from '../../src/bridge/messages';
+import { AI_ACTIONS, isPageWidth, isWebviewMessage, MAX_AI_TEXT, MAX_CHECKED_LINKS, PAGE_WIDTHS, resolvePageWidth } from '../../src/bridge/messages';
 
 describe('isWebviewMessage', () => {
   it.each([
@@ -84,5 +84,42 @@ describe('AI messages', () => {
   it('every action is accepted, and an oversized selection is refused', () => {
     for (const action of AI_ACTIONS) expect(isWebviewMessage({ type: 'ai', id: 'x', action, lang: 'English', instruction: 'Do it', markdown: 'x' })).toBe(true);
     expect(isWebviewMessage({ type: 'ai', id: 'x', action: 'improve', markdown: 'x'.repeat(MAX_AI_TEXT + 1) })).toBe(false);
+  });
+});
+
+describe('page width', () => {
+  it.each([
+    { type: 'pageWidth', value: 'narrow' },
+    { type: 'pageWidth', value: 'normal' },
+    { type: 'pageWidth', value: 'wide' },
+    { type: 'pageWidth', value: 'full' },
+    { type: 'pageWidth', value: null },
+  ])('accepts %j', (m) => {
+    expect(isWebviewMessage(m)).toBe(true);
+  });
+
+  it.each([
+    { type: 'pageWidth' },
+    { type: 'pageWidth', value: 'huge' },
+    { type: 'pageWidth', value: 3 },
+    { type: 'pageWidth', value: '' },
+  ])('rejects %j', (m) => {
+    expect(isWebviewMessage(m)).toBe(false);
+  });
+
+  it('isPageWidth knows exactly the four widths', () => {
+    expect(PAGE_WIDTHS).toEqual(['narrow', 'normal', 'wide', 'full']);
+    for (const w of PAGE_WIDTHS) expect(isPageWidth(w)).toBe(true);
+    for (const x of [undefined, null, '', 'Normal', 'auto', 760]) expect(isPageWidth(x)).toBe(false);
+  });
+
+  it('the per-file choice wins over the setting; anything unknown falls back', () => {
+    expect(resolvePageWidth('wide', 'narrow')).toEqual({ width: 'wide', setting: 'narrow', override: 'wide' });
+    expect(resolvePageWidth(undefined, 'narrow')).toEqual({ width: 'narrow', setting: 'narrow', override: null });
+    expect(resolvePageWidth(null, 'full')).toEqual({ width: 'full', setting: 'full', override: null });
+    // A stale or hand-edited value is ignored rather than trusted.
+    expect(resolvePageWidth('huge', 'wide')).toEqual({ width: 'wide', setting: 'wide', override: null });
+    expect(resolvePageWidth(undefined, 'bogus')).toEqual({ width: 'normal', setting: 'normal', override: null });
+    expect(resolvePageWidth('full', 42)).toEqual({ width: 'full', setting: 'normal', override: 'full' });
   });
 });
