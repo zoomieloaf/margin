@@ -62,6 +62,11 @@
         "category": "Margin"
       },
       {
+        "command": "margin.changePageWidth",
+        "title": "Change Page Width",
+        "category": "Margin"
+      },
+      {
         "command": "margin.exportPdf",
         "title": "Export to PDF",
         "category": "Margin"
@@ -112,6 +117,10 @@
         },
         {
           "command": "margin.toggleMode",
+          "when": "activeCustomEditorId == 'margin.editor'"
+        },
+        {
+          "command": "margin.changePageWidth",
           "when": "activeCustomEditorId == 'margin.editor'"
         },
         {
@@ -183,6 +192,23 @@
           "type": "boolean",
           "default": true,
           "description": "Show the outline panel when there is room."
+        },
+        "margin.pageWidth": {
+          "type": "string",
+          "enum": [
+            "narrow",
+            "normal",
+            "wide",
+            "full"
+          ],
+          "enumDescriptions": [
+            "A 600 px text column.",
+            "A 716 px text column.",
+            "A 1000 px text column.",
+            "The whole editor width, with side padding."
+          ],
+          "default": "normal",
+          "markdownDescription": "Width of the text column in Margin. Each file can have its own width (the width button in the toolbar, or **Margin: Change Page Width**). Exported PDF and HTML files keep their own print width."
         }
       }
     },

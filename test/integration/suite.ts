@@ -368,6 +368,69 @@ const tests: Array<[string, () => Promise<void>]> = [
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   }],
 
+  ['margin.pageWidth is contributed: narrow, normal, wide, full; normal by default', async () => {
+    const ext = vscode.extensions.all.find((e) => e.packageJSON.name === 'margin')!;
+    const prop = ext.packageJSON.contributes.configuration.properties['margin.pageWidth'] as { enum: string[]; default: string; enumDescriptions: string[] };
+    assert.deepEqual(prop.enum, ['narrow', 'normal', 'wide', 'full']);
+    assert.equal(prop.enumDescriptions.length, 4);
+    assert.equal(prop.default, 'normal');
+    assert.equal(vscode.workspace.getConfiguration('margin').get('pageWidth'), 'normal');
+    assert.ok((await vscode.commands.getCommands(true)).includes('margin.changePageWidth'));
+  }],
+
+  ['a page width chosen for a file survives closing and reopening it, and never touches the file', async () => {
+    const uri = file('other.md');
+    const doc = await vscode.workspace.openTextDocument(uri);
+    const text = doc.getText();
+    const version = doc.version;
+    await vscode.commands.executeCommand('vscode.openWith', uri, 'margin.editor');
+    await until(() => isMarginTab('other.md'), 'Margin tab');
+    let init = await waitForPosted(uri, (m) => m.type === 'init');
+    assert.equal(init.type === 'init' && init.settings.pageWidth, 'normal');
+
+    // From the toolbar menu.
+    await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'pageWidth', value: 'wide' });
+    await waitForPosted(uri, (m) => m.type === 'setPageWidth' && m.width === 'wide' && m.override === 'wide');
+    assert.deepEqual(await vscode.commands.executeCommand('margin._test.pageWidth', uri), { width: 'wide', setting: 'normal', override: 'wide' });
+    assert.equal(doc.isDirty, false);
+    assert.equal(doc.version, version);
+
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    await until(() => vscode.window.tabGroups.all.every((g) => g.tabs.length === 0), 'editors closed');
+    await vscode.commands.executeCommand('vscode.openWith', uri, 'margin.editor');
+    await until(() => isMarginTab('other.md'), 'Margin tab again');
+    init = await waitForPosted(uri, (m) => m.type === 'init');
+    assert.equal(init.type === 'init' && init.settings.pageWidth, 'wide');
+    assert.deepEqual(init.type === 'init' && init.settings.pageWidthState, { width: 'wide', setting: 'normal', override: 'wide' });
+
+    // The setting changes pages without a width of their own; this one keeps its own but learns the new default.
+    const config = vscode.workspace.getConfiguration('margin');
+    const sample = file('sample.md');
+    await vscode.commands.executeCommand('vscode.openWith', sample, 'margin.editor', { viewColumn: vscode.ViewColumn.Beside });
+    await waitForPosted(sample, (m) => m.type === 'init');
+    await config.update('pageWidth', 'narrow', vscode.ConfigurationTarget.Global);
+    try {
+      await waitForPosted(sample, (m) => m.type === 'setPageWidth' && m.width === 'narrow' && m.override === null);
+      await waitForPosted(uri, (m) => m.type === 'setPageWidth' && m.width === 'wide' && m.setting === 'narrow');
+
+      // The command, with a width given (the quick pick does the same), on the active editor.
+      await vscode.commands.executeCommand('vscode.openWith', uri, 'margin.editor');
+      await until(() => isMarginTab('other.md'), 'other.md active');
+      await vscode.commands.executeCommand('margin.changePageWidth', 'full');
+      await waitForPosted(uri, (m) => m.type === 'setPageWidth' && m.width === 'full');
+      // Use default.
+      await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'pageWidth', value: null });
+      await waitForPosted(uri, (m) => m.type === 'setPageWidth' && m.width === 'narrow' && m.override === null);
+      assert.deepEqual(await vscode.commands.executeCommand('margin._test.pageWidth', uri), { width: 'narrow', setting: 'narrow', override: null });
+    } finally {
+      await config.update('pageWidth', undefined, vscode.ConfigurationTarget.Global);
+    }
+    assert.equal(doc.getText(), text);
+    assert.equal(doc.isDirty, false);
+    assert.equal(doc.version, version);
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  }],
+
   ['DocumentSync applies an edit and acks the new version', async () => {
     const doc = await vscode.workspace.openTextDocument(file('callouts.md'));
     const posted: HostToWebview[] = [];

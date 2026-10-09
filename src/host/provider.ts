@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { isWebviewMessage, type HostToWebview, type Mode, type WebviewToHost } from '../bridge/messages';
+import { isWebviewMessage, resolvePageWidth, type HostToWebview, type Mode, type PageWidth, type PageWidthState, type WebviewToHost } from '../bridge/messages';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
 import { AiService, AiSession } from './ai/service';
 import { checkLinks, followLink, type Pages } from './navigate';
@@ -33,6 +33,9 @@ interface PendingOpen {
   anchor?: string;
   at: number;
 }
+
+/** workspaceState key prefix of a file's own page width (followed by the document URI). */
+const PAGE_WIDTH_KEY = 'margin.pageWidth:';
 
 /** A pending open older than this belongs to an editor that never came (the open failed). */
 const PENDING_MS = 30_000;
@@ -103,7 +106,8 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
 
     const handle = async (m: WebviewToHost): Promise<void> => {
       switch (m.type) {
-        case 'ready':
+        case 'ready': {
+          const width = this.pageWidth(document.uri);
           session.post({
             type: 'init',
             text: document.getText(),
@@ -111,6 +115,8 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
             mode: session.mode,
             settings: {
               outlineVisible: vscode.workspace.getConfiguration('margin').get('outline.visible', true),
+              pageWidth: width.width,
+              pageWidthState: width,
               ai: this.ai.setting,
               aiEditor: this.ai.available,
             },
@@ -121,6 +127,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
           // Answered with aiAvailable (models may have appeared since the last check).
           void this.ai.refresh();
           break;
+        }
         case 'edit':
           try {
             await sync.applyEdit(m.version, m.edits, m.seq);
@@ -180,6 +187,9 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
         case 'aiCancel':
           ai.cancel(m.id);
           break;
+        case 'pageWidth':
+          await this.setPageWidth(document.uri, m.value);
+          break;
         case 'log':
           console.log(`[margin] ${m.text}`);
           break;
@@ -192,6 +202,8 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
       this.ai.onDidChangeAvailable((editor) => session.post({ type: 'aiAvailable', editor })),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('margin.ai')) session.post({ type: 'aiAvailable', editor: this.ai.available, setting: this.ai.setting });
+        // Pages with their own width keep it; the new default still shows in their width menu.
+        if (e.affectsConfiguration('margin.pageWidth')) session.post({ type: 'setPageWidth', ...this.pageWidth(document.uri) });
       }),
       panel.webview.onDidReceiveMessage((raw: unknown) => {
         if (isWebviewMessage(raw)) void session.receive(raw);
@@ -228,6 +240,24 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
     }
     this.pending.set(uri.toString(), { ...opts, at: Date.now() });
     await vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE);
+  }
+
+  /** The width `uri` shows at: its own choice, otherwise the `margin.pageWidth` setting. */
+  pageWidth(uri: vscode.Uri): PageWidthState {
+    return resolvePageWidth(
+      this.context.workspaceState.get(PAGE_WIDTH_KEY + uri.toString()),
+      vscode.workspace.getConfiguration('margin').get('pageWidth'),
+    );
+  }
+
+  /**
+   * Gives `uri` its own width (null: back to the setting) and updates every Margin editor showing it.
+   * Kept in workspaceState, never in the file: the document doesn't change or become dirty.
+   */
+  async setPageWidth(uri: vscode.Uri, value: PageWidth | null): Promise<void> {
+    await this.context.workspaceState.update(PAGE_WIDTH_KEY + uri.toString(), value ?? undefined);
+    const state = this.pageWidth(uri);
+    for (const s of this.sessionsFor(uri)) s.post({ type: 'setPageWidth', ...state });
   }
 
   private takePending(uri: vscode.Uri): PendingOpen | undefined {

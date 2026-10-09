@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { isWebviewMessage } from '../bridge/messages';
+import { isPageWidth, isWebviewMessage, PAGE_WIDTH_LABEL, PAGE_WIDTHS, type PageWidth } from '../bridge/messages';
 import type { TextEdit } from '../md/types';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
 import { MarginEditorProvider, VIEW_TYPE, type Session } from './provider';
@@ -56,6 +56,25 @@ export function activate(context: vscode.ExtensionContext): void {
       if (doc) await vscode.commands.executeCommand('vscode.openWith', doc.uri, 'default');
     }),
     vscode.commands.registerCommand('margin.toggleMode', () => provider.toggleMode()),
+    // The toolbar's width menu as a quick pick. `value` (a width, or 'default') skips the pick.
+    vscode.commands.registerCommand('margin.changePageWidth', async (value?: unknown) => {
+      const s = provider.active;
+      if (!s) {
+        void vscode.window.showWarningMessage('Open a Markdown file in Margin first.');
+        return;
+      }
+      const uri = s.document.uri;
+      if (value === 'default' || value === null) return provider.setPageWidth(uri, null);
+      if (isPageWidth(value)) return provider.setPageWidth(uri, value);
+      const state = provider.pageWidth(uri);
+      const items: Array<vscode.QuickPickItem & { value: PageWidth | null }> = [
+        ...PAGE_WIDTHS.map((w) => ({ label: PAGE_WIDTH_LABEL[w], value: w, description: state.override === w ? '$(check)' : undefined })),
+        { label: '', kind: vscode.QuickPickItemKind.Separator, value: null },
+        { label: `Use default (${PAGE_WIDTH_LABEL[state.setting]})`, value: null, description: state.override === null ? '$(check)' : undefined },
+      ];
+      const pick = await vscode.window.showQuickPick(items, { title: 'Page width for this file', placeHolder: `Now: ${PAGE_WIDTH_LABEL[state.width]}` });
+      if (pick) await provider.setPageWidth(uri, pick.value);
+    }),
     vscode.commands.registerCommand('margin.exportPdf', withDocument(exportPdf)),
     vscode.commands.registerCommand('margin.exportHtml', withDocument(exportHtml)),
     vscode.commands.registerCommand('margin.copyMarkdown', withDocument(copyMarkdown)),
@@ -94,6 +113,10 @@ export function activate(context: vscode.ExtensionContext): void {
         provider.followLink(sessionFor(uri).document, href),
       ),
       // What the host posted to that editor's webview.
+      // The page width stored for that file and the setting.
+      vscode.commands.registerCommand('margin._test.pageWidth', (uri: vscode.Uri | string) =>
+        provider.pageWidth(typeof uri === 'string' ? vscode.Uri.parse(uri) : uri),
+      ),
       vscode.commands.registerCommand('margin._test.posted', (uri: vscode.Uri | string) => sessionFor(uri).posted ?? []),
       // From now on, warnings are answered with `answer` instead of shown, and recorded.
       vscode.commands.registerCommand('margin._test.answerWarnings', (answer?: string) => {

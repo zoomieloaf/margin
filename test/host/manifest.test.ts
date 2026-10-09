@@ -38,3 +38,30 @@ describe('the margin.ai setting', () => {
     for (const where of ['GitHub Copilot', 'chatgpt.com', 'claude.ai']) expect(readme).toContain(where);
   });
 });
+
+describe('the margin.pageWidth setting', () => {
+  const manifest = JSON.parse(readFileSync(new URL('package.json', root), 'utf8')) as {
+    contributes: {
+      configuration: { properties: Record<string, { enum?: string[]; enumDescriptions?: string[]; default?: unknown }> };
+      commands: Array<{ command: string; title: string; category?: string }>;
+      menus: { commandPalette: Array<{ command: string; when?: string }> };
+    };
+  };
+
+  it('offers narrow, normal, wide and full, each described, normal by default', () => {
+    const w = manifest.contributes.configuration.properties['margin.pageWidth']!;
+    expect(w.enum).toEqual(['narrow', 'normal', 'wide', 'full']);
+    expect(w.enumDescriptions).toHaveLength(4);
+    expect(w.default).toBe('normal');
+  });
+
+  it('has a Change Page Width command, in the palette only for a Margin editor', () => {
+    const cmd = manifest.contributes.commands.find((c) => c.command === 'margin.changePageWidth');
+    expect(cmd).toMatchObject({ title: 'Change Page Width', category: 'Margin' });
+    expect(manifest.contributes.menus.commandPalette.find((c) => c.command === 'margin.changePageWidth')?.when).toBe("activeCustomEditorId == 'margin.editor'");
+  });
+
+  it('the README lists the setting', () => {
+    expect(readme).toMatch(/\| `margin\.pageWidth` \| `normal` \|/);
+  });
+});
