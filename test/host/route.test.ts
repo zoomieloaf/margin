@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AI_SETTINGS } from '../../src/bridge/messages';
-import { aiSetting, chatUrl, chooseRoute, destination, MAX_URL, pickModel, type RouteInput } from '../../src/host/ai/route';
+import { aiSetting, chatCommandFor, chatUrl, chooseRoute, destination, MAX_URL, pickModel, type RouteInput } from '../../src/host/ai/route';
 
 const input = (over: Partial<RouteInput>): RouteInput => ({ setting: 'auto', hasModel: false, appName: 'Visual Studio Code', hasChatCommand: false, ...over });
 
@@ -14,8 +14,9 @@ describe('chooseRoute', () => {
     expect(chooseRoute(input({ hasChatCommand: false }))).toEqual({ kind: 'chat', target: 'chatgpt' });
   });
 
-  it("auto in Cursor: never Cursor's chat command (it doesn't take a query), chatgpt.com instead", () => {
-    expect(chooseRoute(input({ appName: 'Cursor', hasChatCommand: true }))).toEqual({ kind: 'chat', target: 'chatgpt' });
+  it("auto in Cursor: Cursor's own chat when it has one (the user pastes the prompt there)", () => {
+    expect(chooseRoute(input({ appName: 'Cursor', hasChatCommand: true }))).toEqual({ kind: 'chat', target: 'editor' });
+    expect(chooseRoute(input({ appName: 'Cursor', hasChatCommand: false }))).toEqual({ kind: 'chat', target: 'chatgpt' });
   });
 
   it('editor: the model, or nothing when there is none', () => {
@@ -30,6 +31,26 @@ describe('chooseRoute', () => {
 
   it('off: nothing', () => {
     expect(chooseRoute(input({ setting: 'off', hasModel: true }))).toEqual({ kind: 'off' });
+  });
+});
+
+describe('chatCommandFor', () => {
+  const vscodeCommands = ['workbench.action.chat.open'];
+  const cursorCommands = ['workbench.action.chat.open', 'aichat.newchataction', 'composer.newAgentChat'];
+
+  it("VS Code: the chat view, which takes the prompt", () => {
+    expect(chatCommandFor('Visual Studio Code', vscodeCommands)).toEqual({ command: 'workbench.action.chat.open', takesQuery: true });
+    expect(chatCommandFor('Visual Studio Code', [])).toBeUndefined();
+  });
+
+  it("Cursor: a new Cursor chat (Ctrl+L), never the chat view that drops the prompt", () => {
+    expect(chatCommandFor('Cursor', cursorCommands)).toEqual({ command: 'aichat.newchataction', takesQuery: false });
+    expect(chatCommandFor('Cursor', ['composer.newAgentChat'])).toEqual({ command: 'composer.newAgentChat', takesQuery: false });
+    expect(chatCommandFor('Cursor', ['workbench.action.chat.open'])).toBeUndefined();
+  });
+
+  it('VSCodium without a chat: none', () => {
+    expect(chatCommandFor('VSCodium', [])).toBeUndefined();
   });
 });
 

@@ -16,7 +16,7 @@ export interface RouteInput {
   hasModel: boolean;
   /** `vscode.env.appName`. */
   appName: string;
-  /** `workbench.action.chat.open` exists. */
+  /** The editor has a chat Margin can open (`chatCommandFor`). */
   hasChatCommand: boolean;
 }
 
@@ -30,7 +30,27 @@ const SITES: Record<Exclude<ChatTarget, 'editor'>, string> = {
 
 export const isCursor = (appName: string) => /cursor/i.test(appName);
 
-export function chooseRoute({ setting, hasModel, appName, hasChatCommand }: RouteInput): Route {
+/** The command that opens the editor's chat; `takesQuery`: the prompt can be passed to it (otherwise the user pastes it). */
+export interface ChatCommand {
+  command: string;
+  takesQuery: boolean;
+}
+
+/**
+ * The editor's chat, from the commands it has. VS Code's chat view takes the prompt as a query;
+ * Cursor has that command too but ignores the query, so there a new Cursor chat opens (Ctrl+L)
+ * and the prompt is pasted from the clipboard.
+ */
+export function chatCommandFor(appName: string, commands: readonly string[]): ChatCommand | undefined {
+  const has = (c: string) => commands.includes(c);
+  if (isCursor(appName)) {
+    const command = ['aichat.newchataction', 'composer.newAgentChat'].find(has);
+    return command ? { command, takesQuery: false } : undefined;
+  }
+  return has('workbench.action.chat.open') ? { command: 'workbench.action.chat.open', takesQuery: true } : undefined;
+}
+
+export function chooseRoute({ setting, hasModel, hasChatCommand }: RouteInput): Route {
   switch (setting) {
     case 'off':
       return { kind: 'off' };
@@ -41,8 +61,7 @@ export function chooseRoute({ setting, hasModel, appName, hasChatCommand }: Rout
       return hasModel ? { kind: 'model' } : { kind: 'none' };
     case 'auto':
       if (hasModel) return { kind: 'model' };
-      // Cursor has the command, but its chat ignores the query: the prompt would be lost.
-      return { kind: 'chat', target: hasChatCommand && !isCursor(appName) ? 'editor' : 'chatgpt' };
+      return { kind: 'chat', target: hasChatCommand ? 'editor' : 'chatgpt' };
   }
 }
 

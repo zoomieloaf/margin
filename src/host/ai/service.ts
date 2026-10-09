@@ -1,14 +1,15 @@
 import * as vscode from 'vscode';
 import type { AiRequest, AiSetting, HostToWebview } from '../../bridge/messages';
 import { aiPrompt, chatPrompt } from './prompts';
-import { aiSetting, chatUrl, chooseRoute, destination, pickModel, type ChatTarget, type Route } from './route';
+import { aiSetting, chatCommandFor, chatUrl, chooseRoute, destination, pickModel, type ChatTarget, type Route } from './route';
 
 /** What the AI actions use from VS Code. The integration tests replace parts of it (margin._test.stubAi). */
 export interface AiEnv {
   models(): Thenable<readonly vscode.LanguageModelChat[]>;
-  /** The editor has a chat view that takes a query (`workbench.action.chat.open`). */
+  /** The editor has a chat Margin can open (`chatCommandFor`). */
   hasChatCommand(): Thenable<boolean>;
-  openChat(prompt: string): Thenable<unknown>;
+  /** Opens the editor's chat; true when the prompt was filled in, false when the user has to paste it. */
+  openChat(prompt: string): Thenable<boolean>;
   /** A URL string: VS Code opens it as written, without re-encoding the query. */
   openExternal(url: string): Thenable<unknown>;
   clipboard(text: string): Thenable<void>;
@@ -16,14 +17,21 @@ export interface AiEnv {
   confirm(where: string): Thenable<boolean>;
 }
 
-const CHAT_COMMAND = 'workbench.action.chat.open';
 const CONTINUE = 'Continue';
+
+const chatCommand = async () => chatCommandFor(vscode.env.appName, await vscode.commands.getCommands(true));
 
 export const realEnv: AiEnv = {
   // Older editors and some forks have no `vscode.lm`.
   models: () => (vscode.lm?.selectChatModels ? vscode.lm.selectChatModels() : Promise.resolve([])),
-  hasChatCommand: async () => (await vscode.commands.getCommands(true)).includes(CHAT_COMMAND),
-  openChat: (prompt) => vscode.commands.executeCommand(CHAT_COMMAND, { query: prompt }),
+  hasChatCommand: async () => (await chatCommand()) !== undefined,
+  openChat: async (prompt) => {
+    const chat = await chatCommand();
+    if (!chat) throw new Error('no chat view');
+    if (chat.takesQuery) await vscode.commands.executeCommand(chat.command, { query: prompt });
+    else await vscode.commands.executeCommand(chat.command);
+    return chat.takesQuery;
+  },
   openExternal: (url) => vscode.env.openExternal(url as unknown as vscode.Uri),
   clipboard: (text) => vscode.env.clipboard.writeText(text),
   confirm: async (where) => {
@@ -143,9 +151,10 @@ export class AiService implements vscode.Disposable {
     const prompt = chatPrompt(req);
     await this.env.clipboard(prompt);
     let opened = target === 'claude' ? 'claude.ai' : 'chatgpt.com';
+    let prefilled = true;
     if (target === 'editor') {
       try {
-        await this.env.openChat(prompt);
+        prefilled = await this.env.openChat(prompt);
         opened = `${vscode.env.appName}'s chat`;
       } catch {
         await this.env.openExternal(chatUrl('chatgpt', prompt));
@@ -154,7 +163,9 @@ export class AiService implements vscode.Disposable {
       await this.env.openExternal(chatUrl(target, prompt));
     }
     post({ type: 'aiFallback', id: req.id });
-    post({ type: 'toast', text: `Prompt copied, paste the answer back with ${paste}`, sub: `Opened ${opened}` });
+    // Cursor's chat can't be given the prompt: it is pasted there, and the answer pasted back here.
+    if (prefilled) post({ type: 'toast', text: `Prompt copied, paste the answer back with ${paste}`, sub: `Opened ${opened}` });
+    else post({ type: 'toast', text: `Prompt copied: press ${paste} and Enter in ${opened}`, sub: `Then paste the answer back here with ${paste}` });
   }
 
   dispose(): void {

@@ -78,6 +78,7 @@ Margin makes no network requests of its own. Remote images in your documents loa
 Text leaves your machine only when you run an AI action, and only the text that action needs: your selection (Continue writing and Ask AI also send the document before the cursor). Where it goes depends on `margin.ai`:
 
 - **The editor's AI model:** to GitHub Copilot via VS Code (or the model your editor provides), through VS Code's language model API, under your Copilot account and its terms.
+- **The editor's chat:** Margin copies the prompt to your clipboard and opens Copilot Chat in VS Code, or a new chat in Cursor, where you paste it. Nothing is sent until you press Enter there.
 - **chatgpt.com or claude.ai:** Margin copies the prompt to your clipboard and opens the site in your browser. A short prompt goes in the address, and the site may send it right away; a long one waits for you to paste it.
 - **`off`:** AI actions are hidden and nothing is ever sent.
 
