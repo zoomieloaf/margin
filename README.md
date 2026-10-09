@@ -131,7 +131,7 @@ The script raises the version, writes the `CHANGELOG.md` section, commits, tags 
 
 Pushing the tag starts the Release workflow, which runs every test, builds the `.vsix`, publishes it to the VS Code Marketplace and Open VSX, and creates a GitHub release with the `.vsix` and the changelog notes. Run it from the Actions tab for a dry run that publishes nothing.
 
-It needs two repository secrets: `VSCE_PAT` (an Azure DevOps token with Marketplace → Manage, for all accessible organizations) and `OVSX_PAT` (an Open VSX access token). The Azure DevOps token expires after at most a year; when publishing fails with an authentication error, make a new one and replace the secret.
+It needs the repository secret `OVSX_PAT` (an Open VSX access token). For the VS Code Marketplace it uses `VSCE_PAT` when that secret exists; without it, the workflow skips the Marketplace and you upload the `.vsix` from the GitHub release at marketplace.visualstudio.com/manage. (Azure DevOps stops issuing the all-organizations tokens the Marketplace needs on 2026-12-01; tokenless trusted publishing, `vsce publish --oidc`, is the planned replacement.)
 
 ## License
 

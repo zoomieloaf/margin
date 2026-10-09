@@ -56,11 +56,18 @@ jobs:
       - name: Build the .vsix
         run: npm run package
 
+      # Without a VSCE_PAT secret, upload the .vsix from the GitHub release by hand at
+      # https://marketplace.visualstudio.com/manage/publishers/zoomieloaf (Update → upload).
       - name: Publish to the VS Code Marketplace
         if: github.ref_type == 'tag'
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-        run: npx vsce publish --packagePath "margin-${{ steps.version.outputs.version }}.vsix"
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::warning::No VSCE_PAT secret: upload margin-${{ steps.version.outputs.version }}.vsix from the GitHub release to the Marketplace by hand."
+            exit 0
+          fi
+          npx vsce publish --packagePath "margin-${{ steps.version.outputs.version }}.vsix"
 
       - name: Publish to Open VSX
         if: github.ref_type == 'tag'
