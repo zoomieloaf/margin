@@ -63,6 +63,8 @@ svg { flex: none; }
 .tb .chev, .bb .chev { width: 12px; height: 12px; opacity: 0.7; }
 .blk-label { min-width: 82px; text-align: left; }
 .vsep { width: 1px; height: 18px; background: var(--m-line); margin: 0 5px; flex: none; }
+/* Back and Forward: shown only when margin.toolbar.backForward is on. */
+.app:not([data-nav="on"]) .toolbar :is([data-act="back"], [data-act="forward"], .nav-sep) { display: none; }
 .fmt { display: flex; align-items: center; gap: 2px; }
 .app[data-mode="preview"] .fmt, .app[data-mode="source"] .fmt { display: none; }
 .tb-hint { display: none; align-items: center; gap: 7px; margin-left: 12px; color: var(--m-muted); font-size: 12px; white-space: nowrap; }

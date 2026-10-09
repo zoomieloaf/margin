@@ -70,6 +70,8 @@ export interface WebviewSettings {
   aiEditor: boolean;
   /** The `margin.links.openIn` setting (labels the hover card's other Open button). */
   linksOpenIn: LinksOpenIn;
+  /** The `margin.toolbar.backForward` setting: the toolbar shows Back and Forward (hidden when missing). */
+  navButtons?: boolean;
 }
 
 /** Messages the webview sends to the extension host. */
@@ -126,7 +128,9 @@ export type HostToWebview =
   /** The page width changed (the file's choice or the `margin.pageWidth` setting). */
   | ({ type: 'setPageWidth' } & PageWidthState)
   /** The `margin.links.openIn` setting changed. */
-  | { type: 'linksOpenIn'; value: LinksOpenIn };
+  | { type: 'linksOpenIn'; value: LinksOpenIn }
+  /** The `margin.toolbar.backForward` setting changed. */
+  | { type: 'navButtons'; visible: boolean };
 
 /** More links than this in one `checkLinks` is not a document someone wrote by hand: refused. */
 export const MAX_CHECKED_LINKS = 2000;

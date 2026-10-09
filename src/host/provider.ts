@@ -120,6 +120,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
               ai: this.ai.setting,
               aiEditor: this.ai.available,
               linksOpenIn: linksOpenIn(),
+              navButtons: navButtons(),
             },
             baseUri: panel.webview.asWebviewUri(docDir).toString() + '/',
             ...(anchor ? { anchor } : {}),
@@ -212,6 +213,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
         // Pages with their own width keep it; the new default still shows in their width menu.
         if (e.affectsConfiguration('margin.pageWidth')) session.post({ type: 'setPageWidth', ...this.pageWidth(document.uri) });
         if (e.affectsConfiguration('margin.links.openIn')) session.post({ type: 'linksOpenIn', value: linksOpenIn() });
+        if (e.affectsConfiguration('margin.toolbar.backForward')) session.post({ type: 'navButtons', visible: navButtons() });
       }),
       panel.webview.onDidReceiveMessage((raw: unknown) => {
         if (isWebviewMessage(raw)) void session.receive(raw);
@@ -316,6 +318,9 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
 }
 
 /** The `margin.links.openIn` setting (sameTab when unset or unknown). */
+/** The toolbar's Back and Forward are off unless `margin.toolbar.backForward` turns them on. */
+const navButtons = (): boolean => vscode.workspace.getConfiguration('margin').get<boolean>('toolbar.backForward', false) === true;
+
 const linksOpenIn = (): LinksOpenIn => {
   const v = vscode.workspace.getConfiguration('margin').get('links.openIn');
   return isLinksOpenIn(v) ? v : 'sameTab';

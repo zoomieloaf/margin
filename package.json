@@ -226,6 +226,11 @@
           ],
           "default": "sameTab",
           "markdownDescription": "Where a link clicked in Margin opens its page. Ctrl+click (Cmd+click on macOS) does the opposite."
+        },
+        "margin.toolbar.backForward": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Show Back and Forward buttons at the start of Margin's toolbar. Without them, Alt+← / Alt+→ (VS Code's Go Back / Go Forward) and the mouse's side buttons still work."
         }
       }
     },

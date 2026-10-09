@@ -16,7 +16,7 @@ const NAV = NAV_KEYS[osOf(typeof navigator === 'undefined' ? '' : navigator.plat
 const TEMPLATE = `
 ${btn('back', 'back', 'Back', NAV.back)}
 ${btn('forward', 'forward', 'Forward', NAV.forward)}
-<span class="vsep"></span>
+<span class="vsep nav-sep"></span>
 <div class="seg" role="group" aria-label="View mode">
   <button type="button" data-mode="preview" data-tip="Preview" data-key="Ctrl+E">${icon('eye')}<span>Preview</span></button>
   <button type="button" data-mode="edit" data-tip="Edit" data-key="Ctrl+E">${icon('pencil')}<span>Edit</span></button>

@@ -36,7 +36,7 @@ async function open(text, mode = 'edit', settings = {}, viewport = { width: 1100
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.evaluateOnNewDocument((t, m, s) => { window.__initialText = t; window.__mode = m; window.__ai = s.ai; window.__aiEditor = s.aiEditor; window.__pageWidth = s.pageWidth; window.__linksOpenIn = s.linksOpenIn; }, text, mode, settings);
+  await page.evaluateOnNewDocument((t, m, s) => { window.__initialText = t; window.__mode = m; window.__ai = s.ai; window.__aiEditor = s.aiEditor; window.__pageWidth = s.pageWidth; window.__linksOpenIn = s.linksOpenIn; window.__navButtons = s.navButtons; }, text, mode, settings);
   await page.goto(harness);
   await page.waitForSelector('.ProseMirror');
   await page.waitForSelector('.app[data-mode]'); // the init message has been applied
@@ -1010,7 +1010,7 @@ const scrollTop = (page) => page.$eval('.scroll', (e) => e.scrollTop);
 
 await test('the toolbar Back and Forward post navigate; their tooltips name VS Code\'s keys', async () => {
   for (const mode of ['preview', 'edit', 'source']) {
-    const page = await open('# Title\n\nText.\n', mode);
+    const page = await open('# Title\n\nText.\n', mode, { navButtons: true });
     const buttons = await page.$$eval('.toolbar [data-act="back"], .toolbar [data-act="forward"]', (bs) => bs.map((b) => [b.dataset.act, b.dataset.tip, b.dataset.key, b.getAttribute('aria-label'), b.offsetWidth > 0]));
     assert.deepEqual(buttons, [['back', 'Back', 'Alt+←', 'Back', true], ['forward', 'Forward', 'Alt+→', 'Forward', true]], mode);
     // They come first in the toolbar.
@@ -1023,6 +1023,20 @@ await test('the toolbar Back and Forward post navigate; their tooltips name VS C
     assert.deepEqual(page.errors, []);
     await page.close();
   }
+});
+
+await test('Back and Forward are hidden by default and shown by the setting', async () => {
+  const page = await open('# Title\n\nText.\n', 'edit');
+  const shown = () => page.$$eval('.toolbar [data-act="back"], .toolbar [data-act="forward"], .toolbar .nav-sep', (els) => els.map((e) => e.offsetWidth > 0));
+  assert.deepEqual(await shown(), [false, false, false]);
+  await page.evaluate(() => window.postMessage({ type: 'navButtons', visible: true }, '*'));
+  await sleep(50);
+  assert.deepEqual(await shown(), [true, true, true]);
+  await page.evaluate(() => window.postMessage({ type: 'navButtons', visible: false }, '*'));
+  await sleep(50);
+  assert.deepEqual(await shown(), [false, false, false]);
+  assert.deepEqual(page.errors, []);
+  await page.close();
 });
 
 await test('the mouse back and forward buttons post navigate back and forward', async () => {
@@ -1041,7 +1055,7 @@ await test('the mouse back and forward buttons post navigate back and forward', 
 });
 
 await test('Back after an in-page #jump scrolls back without navigate; the next Back posts navigate', async () => {
-  const page = await open(JUMP_DOC, 'preview');
+  const page = await open(JUMP_DOC, 'preview', { navButtons: true });
   assert.equal(await scrollTop(page), 0);
   await page.click('.ProseMirror a');
   await sleep(900);
@@ -1079,7 +1093,7 @@ await test('Back after an in-page #jump scrolls back without navigate; the next 
 });
 
 await test('in-page jumps are forgotten when the document changes', async () => {
-  const page = await open(JUMP_DOC, 'preview');
+  const page = await open(JUMP_DOC, 'preview', { navButtons: true });
   await page.click('.ProseMirror a');
   await sleep(900);
   await fromHost(page, { type: 'reset', text: JUMP_DOC.replace('Jump', 'Go'), version: 1 });

@@ -329,6 +329,7 @@ class App implements AppApi, LinkCardHost {
         this.configureAi(m.settings.ai ?? 'auto', m.settings.aiEditor ?? false);
         this.linksOpenIn = isLinksOpenIn(m.settings.linksOpenIn) ? m.settings.linksOpenIn : 'sameTab';
         this.outline.visible = m.settings.outlineVisible && innerWidth >= 900;
+        this.root.dataset.nav = m.settings.navButtons ? 'on' : 'off';
         this.setPageWidth(m.settings.pageWidthState ?? resolvePageWidth(null, m.settings.pageWidth));
         // Animated from now on: the page doesn't visibly resize while it opens.
         void this.wrap.offsetWidth;
@@ -386,6 +387,9 @@ class App implements AppApi, LinkCardHost {
         break;
       case 'setPageWidth':
         this.setPageWidth(resolvePageWidth(m.override, m.setting));
+        break;
+      case 'navButtons':
+        this.root.dataset.nav = m.visible ? 'on' : 'off';
         break;
       case 'linksOpenIn':
         this.linksOpenIn = m.value;
