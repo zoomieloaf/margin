@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2
 
 - A tidier extension page: no install instructions on the page you install from, and the guide right after Get started.
 
