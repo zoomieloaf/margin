@@ -282,6 +282,13 @@
       },
       {
         "command": "margin.webviewKey",
+        "key": "alt+left",
+        "mac": "ctrl+-",
+        "linux": "ctrl+alt+-",
+        "when": "activeCustomEditorId == 'margin.editor' && margin.webviewFocused"
+      },
+      {
+        "command": "margin.webviewKey",
         "key": "ctrl+`",
         "mac": "cmd+`",
         "when": "activeCustomEditorId == 'margin.editor' && margin.webviewFocused && margin.editing"

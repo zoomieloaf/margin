@@ -4,12 +4,19 @@ import { activeState } from '../editor/commands';
 import type { AppApi } from './api';
 import { LABEL } from './catalog';
 import { icon } from './icons';
+import { NAV_KEYS, osOf } from './shortcut';
 
 const btn = (act: string, ic: string, tip: string, key = '', extra = '') =>
   `<button type="button" class="tb" data-act="${act}" ${extra} data-tip="${tip}"${key ? ` data-key="${key}"` : ''} aria-label="${tip}">${icon(ic)}</button>`;
 const blockBtn = (block: string, ic: string, tip: string) => btn('block', ic, tip, '', `data-block="${block}"`);
 
+/** VS Code's Go Back / Go Forward keys on this platform. */
+const NAV = NAV_KEYS[osOf(typeof navigator === 'undefined' ? '' : navigator.platform || '')];
+
 const TEMPLATE = `
+${btn('back', 'back', 'Back', NAV.back)}
+${btn('forward', 'forward', 'Forward', NAV.forward)}
+<span class="vsep"></span>
 <div class="seg" role="group" aria-label="View mode">
   <button type="button" data-mode="preview" data-tip="Preview" data-key="Ctrl+E">${icon('eye')}<span>Preview</span></button>
   <button type="button" data-mode="edit" data-tip="Edit" data-key="Ctrl+E">${icon('pencil')}<span>Edit</span></button>

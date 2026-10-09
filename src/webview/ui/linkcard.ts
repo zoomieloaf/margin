@@ -1,11 +1,13 @@
-import type { Mode } from '../../bridge/messages';
+import type { LinksOpenIn, Mode } from '../../bridge/messages';
 import { icon } from './icons';
 
 /** What the link card needs from the app. */
 export interface LinkCardHost {
   readonly mode: Mode;
-  /** Follows the link, like a click on it. */
-  openHref(href: string): void;
+  /** The margin.links.openIn setting: names the other Open button. */
+  readonly linksOpenIn: LinksOpenIn;
+  /** Follows the link, like a click on it; `otherTab`: like a Ctrl/Cmd+click (the other kind of tab). */
+  openHref(href: string, otherTab?: boolean): void;
   /** Selects the link and opens the link editor on it. */
   editLink(a: HTMLAnchorElement): void;
   copyHref(href: string): void;
@@ -15,7 +17,10 @@ const SHOW_MS = 400;
 /** Time to move the pointer from the link to the card (or back) before the card hides. */
 const GRACE_MS = 250;
 
-/** The small card with a link's address and Open · Edit link · Copy link, shown on hover in Edit mode. */
+/** A link that opens a file in VS Code (not an in-page #anchor or a web link): it can open in either kind of tab. */
+const opensFile = (href: string) => href !== '' && !href.startsWith('#') && !/^[a-z][a-z0-9+.-]*:/i.test(href);
+
+/** The small card with a link's address and Open · Open in new tab · Edit link · Copy link, shown on hover in Edit mode. */
 export class LinkCard {
   readonly el: HTMLDivElement;
   private readonly hrefEl: HTMLElement;
@@ -34,6 +39,7 @@ export class LinkCard {
       <span class="lc-href"></span>
       <span class="bsep"></span>
       <button type="button" class="bb" data-act="open" title="Open the link">${icon('file')}Open</button>
+      <button type="button" class="bb" data-act="open-other">${icon('newtab')}<span></span></button>
       <button type="button" class="bb" data-act="edit" title="Change the link address">${icon('link')}Edit link</button>
       <button type="button" class="bb" data-act="copy" title="Copy the link address">${icon('copy')}Copy link</button>`;
     parent.append(this.el);
@@ -65,6 +71,7 @@ export class LinkCard {
       if (!btn || !a || href === null || href === undefined) return;
       this.hide();
       if (btn.dataset.act === 'open') this.host.openHref(href);
+      else if (btn.dataset.act === 'open-other') this.host.openHref(href, true);
       else if (btn.dataset.act === 'edit') this.host.editLink(a);
       else if (btn.dataset.act === 'copy') this.host.copyHref(href);
     });
@@ -91,6 +98,12 @@ export class LinkCard {
     this.hrefEl.textContent = href;
     this.hrefEl.title = href;
     (this.el.querySelector('[data-act="open"]') as HTMLElement).title = `Open ${href}`;
+    // The opposite of margin.links.openIn, like Ctrl/Cmd+click.
+    const other = this.el.querySelector<HTMLElement>('[data-act="open-other"]')!;
+    const newTab = this.host.linksOpenIn !== 'newTab';
+    other.hidden = !opensFile(href);
+    other.querySelector('span')!.textContent = newTab ? 'Open in new tab' : 'Open in this tab';
+    other.title = newTab ? `Open ${href} in a new tab` : `Open ${href} in the preview tab`;
     this.el.hidden = false;
     // Under the line the pointer is on (a link can wrap), or above it when there's no room.
     const r = a.getClientRects()[0] ?? a.getBoundingClientRect();

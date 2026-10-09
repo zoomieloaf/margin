@@ -89,6 +89,9 @@ const tests: Array<[string, () => Promise<void>]> = [
       assert.equal(b.when, condition, key);
       assert.equal(b.mac, key.replace('ctrl+', 'cmd+'), key);
     }
+    // Go Back belongs to Margin too: Back first undoes an in-page #jump, then asks VS Code to go back.
+    const back = bindings.find((k) => k.key === 'alt+left') as { command: string; mac?: string; linux?: string; when?: string } | undefined;
+    assert.deepEqual(back && [back.command, back.mac, back.linux, back.when], ['margin.webviewKey', 'ctrl+-', 'ctrl+alt+-', when]);
     const commands = await vscode.commands.getCommands(true);
     for (const c of ['margin.undo', 'margin.redo', 'margin.webviewKey']) assert.ok(commands.includes(c), `missing command ${c}`);
     // The key commands must not change the document themselves (the webview does the work).

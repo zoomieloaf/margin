@@ -9,7 +9,8 @@ import { EditorState, Selection, TextSelection, type Transaction } from 'prosemi
 import { tableEditing } from 'prosemirror-tables';
 import { EditorView } from 'prosemirror-view';
 import {
-  isPageWidth, MAX_CHECKED_LINKS, resolvePageWidth, type AiAction, type AiSetting, type HostToWebview, type Mode, type PageWidthState, type WebviewToHost,
+  isLinksOpenIn, isPageWidth, linkOpensNewTab, MAX_CHECKED_LINKS, resolvePageWidth,
+  type AiAction, type AiSetting, type HostToWebview, type LinksOpenIn, type Mode, type NavDirection, type PageWidthState, type WebviewToHost,
 } from '../bridge/messages';
 import { activeState, clickTask, insertBlock, setBlock, toggleInline, type BlockType, type InsertKind, type MarkName } from './editor/commands';
 import { findAnchor } from './editor/anchors';
@@ -29,7 +30,8 @@ import { LinkCard, type LinkCardHost } from './ui/linkcard';
 import { Menu, type Rect } from './ui/menu';
 import { docStats, Outline } from './ui/outline';
 import { Slash } from './ui/slash';
-import { shortcutKey } from './ui/shortcut';
+import { isMac } from './ui/icons';
+import { isBackKey, osOf, shortcutKey } from './ui/shortcut';
 import { Toolbar } from './ui/toolbar';
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void; setState(s: unknown): void; getState(): unknown };
@@ -41,9 +43,14 @@ const EDIT_DEBOUNCE_MS = 150;
 const LINK_CHECK_MS = 500;
 /** A mouse that moved further than this between press and release dragged: no link is opened. */
 const CLICK_SLOP_PX = 4;
+/** In-page #jumps that Back can undo, at most. */
+const MAX_JUMPS = 50;
+const OS = osOf(navigator.platform || '');
 
 class App implements AppApi, LinkCardHost {
   mode: Mode = 'preview';
+  /** The margin.links.openIn setting. */
+  linksOpenIn: LinksOpenIn = 'sameTab';
   readonly menu: Menu;
   readonly view: EditorView;
   private readonly model = new DocModel(
@@ -74,6 +81,11 @@ class App implements AppApi, LinkCardHost {
   /** Debounce of the Markdown-mode textarea; undefined when nothing is waiting. */
   private sourceTimer: number | undefined;
   private lastWords = -1;
+  /**
+   * Where the page was scrolled before each in-page #jump, latest last. VS Code's Go Back doesn't
+   * know about them: Back undoes these first. Cleared when the document changes.
+   */
+  private jumps: number[] = [];
 
   constructor(host: HTMLElement) {
     this.root = host;
@@ -132,6 +144,12 @@ class App implements AppApi, LinkCardHost {
           this.downAt = { x: e.clientX, y: e.clientY };
           return false;
         },
+        // Links are followed in handleClick (on mouseup). The click's default would load the link in
+        // the webview itself (Preview isn't contenteditable), or a new window with Ctrl/Cmd.
+        click: (_view, e) => {
+          if ((e.target as HTMLElement).closest('a')) e.preventDefault();
+          return false;
+        },
         beforeinput: (_view, e) => {
           const type = (e as InputEvent).inputType;
           if (type === 'historyUndo' || type === 'historyRedo') {
@@ -162,6 +180,15 @@ class App implements AppApi, LinkCardHost {
 
     window.addEventListener('message', (e: MessageEvent<HostToWebview>) => this.receive(e.data));
     window.addEventListener('keydown', (e) => this.globalKey(e), true);
+    // The mouse's back and forward buttons (the webview has no browser history of its own).
+    window.addEventListener('mousedown', (e) => {
+      if (e.button === 3 || e.button === 4) e.preventDefault();
+    }, true);
+    window.addEventListener('mouseup', (e) => {
+      if (e.button !== 3 && e.button !== 4) return;
+      e.preventDefault();
+      this.navigate(e.button === 3 ? 'back' : 'forward');
+    }, true);
     // Drives the margin.webviewFocused context key, which routes Ctrl+Z, Ctrl+B... to Margin.
     window.addEventListener('focus', () => {
       post({ type: 'focus' });
@@ -215,6 +242,7 @@ class App implements AppApi, LinkCardHost {
     this.view.updateState(before.apply(tr));
     const docChanged = this.view.state.doc !== before.doc;
     if (docChanged) {
+      this.jumps = [];
       this.schedule();
       this.scheduleLinkCheck();
     }
@@ -281,6 +309,7 @@ class App implements AppApi, LinkCardHost {
     window.clearTimeout(this.timer);
     window.clearTimeout(this.sourceTimer);
     this.timer = this.sourceTimer = undefined;
+    this.jumps = [];
     const sel = keepSelection ? this.view.state.selection.from : undefined;
     this.view.updateState(this.createState(doc, sel));
     if (this.mode === 'source' && this.source.value !== this.model.markdown) {
@@ -298,6 +327,7 @@ class App implements AppApi, LinkCardHost {
       case 'init':
         this.baseUri = m.baseUri;
         this.configureAi(m.settings.ai ?? 'auto', m.settings.aiEditor ?? false);
+        this.linksOpenIn = isLinksOpenIn(m.settings.linksOpenIn) ? m.settings.linksOpenIn : 'sameTab';
         this.outline.visible = m.settings.outlineVisible && innerWidth >= 900;
         this.setPageWidth(m.settings.pageWidthState ?? resolvePageWidth(null, m.settings.pageWidth));
         // Animated from now on: the page doesn't visibly resize while it opens.
@@ -357,6 +387,9 @@ class App implements AppApi, LinkCardHost {
       case 'setPageWidth':
         this.setPageWidth(resolvePageWidth(m.override, m.setting));
         break;
+      case 'linksOpenIn':
+        this.linksOpenIn = m.value;
+        break;
     }
   }
 
@@ -413,6 +446,9 @@ class App implements AppApi, LinkCardHost {
       case 'undo': case 'redo':
         this.history(action);
         break;
+      case 'back': case 'forward':
+        this.navigate(action);
+        return;
       case 'block':
         if (arg) setBlock(view, arg as BlockType);
         break;
@@ -552,7 +588,8 @@ class App implements AppApi, LinkCardHost {
     const a = target.closest('a');
     if (a && this.followsClick(e)) {
       const href = a.getAttribute('href');
-      if (href) this.openHref(href);
+      // Ctrl+click (Cmd+click on macOS): the other kind of tab than margin.links.openIn says.
+      if (href) this.openHref(href, isMac ? e.metaKey : e.ctrlKey);
       e.preventDefault();
       return true;
     }
@@ -561,7 +598,7 @@ class App implements AppApi, LinkCardHost {
 
   /**
    * A click on a link opens it, in Preview and in Edit mode alike (Notion style), with or without
-   * Ctrl/Cmd. Not after a drag or with text selected (that was selecting), and not with Shift or Alt
+   * Ctrl/Cmd (which picks the other kind of tab). Not after a drag or with text selected (that was selecting), and not with Shift or Alt
    * (those extend the selection). To edit a link's text, click just after it or use the arrow keys.
    */
   private followsClick(e: MouseEvent): boolean {
@@ -570,9 +607,32 @@ class App implements AppApi, LinkCardHost {
     return getSelection()?.isCollapsed ?? true;
   }
 
-  openHref(href: string): void {
-    if (href.startsWith('#')) this.scrollToAnchor(href.slice(1));
-    else post({ type: 'openLink', href });
+  /** `otherTab`: open in the other kind of tab than margin.links.openIn says (Ctrl/Cmd+click, the link card). */
+  openHref(href: string, otherTab = false): void {
+    if (href.startsWith('#')) this.jumpTo(href.slice(1));
+    else post({ type: 'openLink', href, ...(otherTab ? { newTab: !linkOpensNewTab(this.linksOpenIn) } : {}) });
+  }
+
+  /** An in-page #link: scrolls to the heading, and Back comes back here. */
+  private jumpTo(fragment: string): void {
+    const from = this.scroll.scrollTop;
+    if (!this.scrollToAnchor(fragment)) return;
+    this.jumps.push(from);
+    if (this.jumps.length > MAX_JUMPS) this.jumps.shift();
+  }
+
+  /** Back undoes the latest in-page jump, otherwise it is VS Code's Go Back; Forward is always Go Forward. */
+  private navigate(direction: NavDirection): void {
+    const top = direction === 'back' ? this.jumps.pop() : undefined;
+    if (top === undefined) {
+      post({ type: 'navigate', direction });
+      return;
+    }
+    this.scroll.scrollTo({ top, behavior: this.motion ? 'smooth' : 'auto' });
+  }
+
+  private get motion(): boolean {
+    return !matchMedia('(prefers-reduced-motion: reduce)').matches;
   }
 
   /** Selects the whole link and opens the link editor on it (the link card's Edit link). */
@@ -593,14 +653,14 @@ class App implements AppApi, LinkCardHost {
     );
   }
 
-  /** `#fragment` links scroll to the heading with that GitHub id. */
-  private scrollToAnchor(fragment: string, smooth = true): void {
+  /** `#fragment` links scroll to the heading with that GitHub id. False when there is no such heading. */
+  private scrollToAnchor(fragment: string, smooth = true): boolean {
     const pos = findAnchor(this.view.state.doc, fragment);
     const dom = pos === null ? null : this.view.nodeDOM(pos);
-    if (!(dom instanceof HTMLElement)) return;
+    if (!(dom instanceof HTMLElement)) return false;
     const top = this.scroll.scrollTop + dom.getBoundingClientRect().top - this.scroll.getBoundingClientRect().top - 16;
-    const motion = smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-    this.scroll.scrollTo({ top, behavior: motion ? 'smooth' : 'auto' });
+    this.scroll.scrollTo({ top, behavior: smooth && this.motion ? 'smooth' : 'auto' });
+    return true;
   }
 
   private globalKey(e: KeyboardEvent): void {
@@ -608,6 +668,13 @@ class App implements AppApi, LinkCardHost {
     const mod = e.ctrlKey || e.metaKey;
     const k = shortcutKey(e);
     const inInput = e.target instanceof HTMLInputElement;
+    if (isBackKey(e, OS)) {
+      // package.json binds this key to a no-op while Margin has focus, so VS Code doesn't also go back.
+      e.preventDefault();
+      e.stopPropagation();
+      this.navigate('back');
+      return;
+    }
     if (mod && !e.altKey && inInput && (k === 'z' || k === 'y')) {
       // VS Code's webview swallows Ctrl+Z / Ctrl+Y, so the link field runs its own undo.
       e.preventDefault();
