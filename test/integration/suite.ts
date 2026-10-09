@@ -27,6 +27,18 @@ const isMarginTab = (name: string) => {
   return input instanceof vscode.TabInputCustom && input.viewType === 'margin.editor' && input.uri.fsPath === file(name).fsPath;
 };
 
+/** The active group's tabs, in order: [path under docs/ or the tab label, is a preview tab]. */
+const groupTabs = (): Array<[string, boolean]> =>
+  vscode.window.tabGroups.activeTabGroup.tabs.map((t) => {
+    const input = t.input as { uri?: vscode.Uri } | undefined;
+    const name = input?.uri ? path.relative(path.join(workspace, 'docs'), input.uri.fsPath).replace(/\\/g, '/') : t.label;
+    return [name, t.isPreview];
+  });
+
+/** Sets margin.links.openIn for this workspace (undefined: back to the default). */
+const setLinksOpenIn = (value: string | undefined) =>
+  vscode.workspace.getConfiguration('margin').update('links.openIn', value, vscode.ConfigurationTarget.Workspace);
+
 const aiCalls = () => vscode.commands.executeCommand<{ clipboard: string[]; opened: string[]; asked: string[] }>('margin._test.aiCalls');
 
 const warnings = () => vscode.commands.executeCommand<Array<{ message: string; items: string[] }>>('margin._test.warnings');
@@ -254,6 +266,96 @@ const tests: Array<[string, () => Promise<void>]> = [
     assert.equal(doc.version, version);
     assert.equal(doc.getText(), text);
     assert.equal(doc.isDirty, false);
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  }],
+
+  ['margin.links.openIn is contributed: sameTab (default) or newTab, and the editor learns it (init, then linksOpenIn)', async () => {
+    const ext = vscode.extensions.all.find((e) => e.packageJSON.name === 'margin')!;
+    const prop = ext.packageJSON.contributes.configuration.properties['margin.links.openIn'] as { enum: string[]; default: string; enumDescriptions: string[] };
+    assert.deepEqual(prop.enum, ['sameTab', 'newTab']);
+    assert.equal(prop.enumDescriptions.length, 2);
+    assert.equal(prop.default, 'sameTab');
+    assert.equal(vscode.workspace.getConfiguration('margin').get('links.openIn'), 'sameTab');
+    const uri = file('sample.md');
+    await vscode.commands.executeCommand('vscode.openWith', uri, 'margin.editor');
+    await until(() => isMarginTab('sample.md'), 'sample.md in Margin');
+    await vscode.commands.executeCommand('margin._test.postMessage', uri, { type: 'ready' });
+    const init = await waitForPosted(uri, (m) => m.type === 'init');
+    assert.equal(init.type === 'init' && init.settings.linksOpenIn, 'sameTab');
+    await setLinksOpenIn('newTab');
+    assert.deepEqual(await waitForPosted(uri, (m) => m.type === 'linksOpenIn'), { type: 'linksOpenIn', value: 'newTab' });
+    await setLinksOpenIn(undefined);
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  }],
+
+  ['sameTab: clicking through A → B → C keeps A and one preview tab (C); Ctrl+click opens a tab of its own', async () => {
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    await vscode.commands.executeCommand('vscode.openWith', file('sample.md'), 'margin.editor', { preview: false });
+    await until(() => isMarginTab('sample.md'), 'sample.md in Margin');
+    await vscode.commands.executeCommand('margin._test.openLink', file('sample.md'), './other.md');
+    await until(() => isMarginTab('other.md'), 'other.md opened');
+    assert.deepEqual(groupTabs(), [['sample.md', false], ['other.md', true]]);
+    await vscode.commands.executeCommand('margin._test.openLink', file('other.md'), './callouts.md');
+    await until(() => isMarginTab('callouts.md'), 'callouts.md opened');
+    await until(() => groupTabs().length === 2, 'other.md replaced');
+    assert.deepEqual(groupTabs(), [['sample.md', false], ['callouts.md', true]]);
+    // Ctrl/Cmd+click (newTab: true) does the opposite of the setting: a pinned tab.
+    await vscode.commands.executeCommand('margin._test.openLink', file('callouts.md'), './other.md', true);
+    await until(() => isMarginTab('other.md'), 'other.md opened in its own tab');
+    assert.deepEqual(groupTabs(), [['sample.md', false], ['callouts.md', true], ['other.md', false]]);
+    // Other files follow the same rule.
+    await vscode.commands.executeCommand('margin._test.openLink', file('other.md'), './notes.txt');
+    await until(() => vscode.window.activeTextEditor?.document.uri.fsPath === file('notes.txt').fsPath, 'notes.txt opened');
+    assert.deepEqual(groupTabs(), [['sample.md', false], ['other.md', false], ['notes.txt', true]]);
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  }],
+
+  ['newTab: clicking through A → B → C keeps every page in its own tab; Ctrl+click uses the preview tab', async () => {
+    await setLinksOpenIn('newTab');
+    try {
+      await vscode.commands.executeCommand('vscode.openWith', file('sample.md'), 'margin.editor', { preview: false });
+      await until(() => isMarginTab('sample.md'), 'sample.md in Margin');
+      await vscode.commands.executeCommand('margin._test.openLink', file('sample.md'), './other.md');
+      await until(() => isMarginTab('other.md'), 'other.md opened');
+      await vscode.commands.executeCommand('margin._test.openLink', file('other.md'), './callouts.md');
+      await until(() => isMarginTab('callouts.md'), 'callouts.md opened');
+      assert.deepEqual(groupTabs(), [['sample.md', false], ['other.md', false], ['callouts.md', false]]);
+      await vscode.commands.executeCommand('margin._test.openLink', file('callouts.md'), './guides/', false);
+      await until(() => isMarginTab('guides/README.md'), 'guides/README.md opened');
+      assert.deepEqual(groupTabs().at(-1), ['guides/README.md', true]);
+    } finally {
+      await setLinksOpenIn(undefined);
+      await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    }
+  }],
+
+  ['editing a page in the preview tab pins it', async () => {
+    await vscode.commands.executeCommand('vscode.openWith', file('sample.md'), 'margin.editor', { preview: false });
+    await until(() => isMarginTab('sample.md'), 'sample.md in Margin');
+    await vscode.commands.executeCommand('margin._test.openLink', file('sample.md'), './other.md');
+    await until(() => isMarginTab('other.md'), 'other.md opened');
+    assert.deepEqual(groupTabs(), [['sample.md', false], ['other.md', true]]);
+    const doc = await vscode.workspace.openTextDocument(file('other.md'));
+    const original = doc.getText();
+    await vscode.commands.executeCommand('margin._test.postEdit', file('other.md'), [{ start: 0, end: 0, text: 'Edited. ' }]);
+    await until(() => doc.isDirty, 'other.md dirty');
+    await until(() => groupTabs()[1]?.[1] === false, 'the edited tab pinned');
+    const restore = new vscode.WorkspaceEdit();
+    restore.replace(doc.uri, new vscode.Range(doc.positionAt(0), doc.positionAt(doc.getText().length)), original);
+    await vscode.workspace.applyEdit(restore);
+    await doc.save();
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  }],
+
+  ['the toolbar Back and Forward run Go Back and Go Forward', async () => {
+    await vscode.commands.executeCommand('vscode.openWith', file('sample.md'), 'margin.editor', { preview: false });
+    await until(() => isMarginTab('sample.md'), 'sample.md in Margin');
+    await vscode.commands.executeCommand('margin._test.openLink', file('sample.md'), './other.md', true);
+    await until(() => isMarginTab('other.md'), 'other.md opened');
+    await vscode.commands.executeCommand('margin._test.postMessage', file('other.md'), { type: 'navigate', direction: 'back' });
+    await until(() => isMarginTab('sample.md'), 'back on sample.md', 5000);
+    await vscode.commands.executeCommand('margin._test.postMessage', file('sample.md'), { type: 'navigate', direction: 'forward' });
+    await until(() => isMarginTab('other.md'), 'forward to other.md', 5000);
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
   }],
 

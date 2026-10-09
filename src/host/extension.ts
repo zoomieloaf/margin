@@ -109,8 +109,9 @@ export function activate(context: vscode.ExtensionContext): void {
         return sessionFor(uri).receive(message);
       }),
       // Follows a link from that editor and resolves when it is done (a webview `openLink` isn't awaited).
-      vscode.commands.registerCommand('margin._test.openLink', (uri: vscode.Uri | string, href: string) =>
-        provider.followLink(sessionFor(uri).document, href),
+      // `newTab` as the webview would send it (Ctrl/Cmd+click, the hover card).
+      vscode.commands.registerCommand('margin._test.openLink', (uri: vscode.Uri | string, href: string, newTab?: boolean) =>
+        provider.followLink(sessionFor(uri), href, newTab),
       ),
       // What the host posted to that editor's webview.
       // The page width stored for that file and the setting.

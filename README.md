@@ -65,6 +65,7 @@ While you edit in Margin, these shortcuts belong to Margin: for example Ctrl+B m
 | `margin.export.browserPath` | *(empty)* | Chrome, Edge or Chromium used for PDF export. Empty means detect automatically. |
 | `margin.outline.visible` | `true` | Show the outline panel when there is room. |
 | `margin.pageWidth` | `normal` | Width of the text column: `narrow` (600 px), `normal` (716 px), `wide` (1000 px) or `full` (the whole editor). The width button in the toolbar, or **Margin: Change Page Width**, sets a width for one file. Exports keep their own print width. |
+| `margin.links.openIn` | `sameTab` | Where a clicked link opens its page. `sameTab`: in the preview tab, which the next linked page replaces (as `workbench.editor.enablePreview` allows; editing a page keeps its tab). `newTab`: every linked page gets its own tab. Ctrl+click (Cmd+click on macOS) does the opposite. |
 | `margin.ai` | `auto` | Where AI actions send text. `auto`: the editor's AI model (GitHub Copilot) when there is one, otherwise a chat. `editor`: only the editor's model. `chatgpt` or `claude`: copy the prompt and open that site. `off`: hide all AI actions. |
 
 ## Privacy

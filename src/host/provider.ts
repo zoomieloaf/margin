@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import { isLinksOpenIn, isWebviewMessage, resolvePageWidth, type LinksOpenIn, type HostToWebview, type Mode, type PageWidth, type PageWidthState, type WebviewToHost } from '../bridge/messages';
+import { isLinksOpenIn, isWebviewMessage, linkOpensNewTab, resolvePageWidth, type LinksOpenIn, type HostToWebview, type Mode, type PageWidth, type PageWidthState, type WebviewToHost } from '../bridge/messages';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
 import { AiService, AiSession } from './ai/service';
-import { checkLinks, followLink, type Pages } from './navigate';
+import { checkLinks, followLink, tabOptions, type LinkTab, type Pages } from './navigate';
 import { SerialQueue } from './queue';
 import { DocumentSync } from './sync';
 import { webviewHtml } from './webviewHtml';
@@ -166,7 +166,13 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
         // Started in order (they read the document before their first await) but not awaited:
         // printing, or a notification waiting for a click, must not hold up the edits behind them.
         case 'openLink':
-          void followLink(document, m.href, this).catch(report);
+          void this.followLink(session, m.href, m.newTab).catch(report);
+          break;
+        case 'navigate':
+          // Like undo: only for the editor the user is in.
+          if (this.activeSession === session) {
+            await vscode.commands.executeCommand(m.direction === 'back' ? 'workbench.action.navigateBack' : 'workbench.action.navigateForward');
+          }
           break;
         case 'checkLinks':
           void checkLinks(document, m.hrefs)
@@ -205,6 +211,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
         if (e.affectsConfiguration('margin.ai')) session.post({ type: 'aiAvailable', editor: this.ai.available, setting: this.ai.setting });
         // Pages with their own width keep it; the new default still shows in their width menu.
         if (e.affectsConfiguration('margin.pageWidth')) session.post({ type: 'setPageWidth', ...this.pageWidth(document.uri) });
+        if (e.affectsConfiguration('margin.links.openIn')) session.post({ type: 'linksOpenIn', value: linksOpenIn() });
       }),
       panel.webview.onDidReceiveMessage((raw: unknown) => {
         if (isWebviewMessage(raw)) void session.receive(raw);
@@ -230,7 +237,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
   }
 
   /** Opens `uri` in Margin, or reveals the Margin editor already showing it, and scrolls to `anchor`. */
-  async openPage(uri: vscode.Uri, opts: { mode: Mode; anchor?: string }): Promise<void> {
+  async openPage(uri: vscode.Uri, opts: { mode: Mode; anchor?: string; tab?: LinkTab }): Promise<void> {
     const open = this.sessionsFor(uri);
     const s = open.find((x) => x.panel.active) ?? open.find((x) => x.panel.visible) ?? open[0];
     if (s) {
@@ -239,8 +246,9 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
       if (opts.anchor) s.post({ type: 'scrollTo', anchor: opts.anchor });
       return;
     }
-    this.pending.set(uri.toString(), { ...opts, at: Date.now() });
-    await vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE);
+    this.pending.set(uri.toString(), { mode: opts.mode, anchor: opts.anchor, at: Date.now() });
+    // sameTab: the preview tab, which the next linked page replaces (editing a page pins it); newTab: a tab of its own.
+    await vscode.commands.executeCommand('vscode.openWith', uri, VIEW_TYPE, tabOptions(opts.tab ?? { newTab: false }));
   }
 
   /** The width `uri` shows at: its own choice, otherwise the `margin.pageWidth` setting. */
@@ -267,9 +275,13 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
     return p && Date.now() - p.at < PENDING_MS ? p : undefined;
   }
 
-  /** Follows a link as if it was clicked in the Margin editor showing `document` (integration tests). */
-  followLink(document: vscode.TextDocument, href: string): Promise<void> {
-    return followLink(document, href, this);
+  /**
+   * Follows a link clicked in `session`, in the same column. `newTab`: the user asked for a tab of
+   * its own or the preview tab (Ctrl/Cmd+click, the hover card); otherwise margin.links.openIn decides.
+   */
+  followLink(session: Session, href: string, newTab?: boolean): Promise<void> {
+    const tab = { newTab: linkOpensNewTab(linksOpenIn(), newTab), viewColumn: session.panel.viewColumn };
+    return followLink(session.document, href, this, tab);
   }
 
   private setActive(session: Session | undefined): void {

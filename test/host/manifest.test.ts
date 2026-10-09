@@ -65,3 +65,23 @@ describe('the margin.pageWidth setting', () => {
     expect(readme).toMatch(/\| `margin\.pageWidth` \| `normal` \|/);
   });
 });
+
+describe('the margin.links.openIn setting', () => {
+  const props = (JSON.parse(readFileSync(new URL('package.json', root), 'utf8')) as {
+    contributes: { configuration: { properties: Record<string, { enum?: string[]; enumDescriptions?: string[]; default?: unknown }> } };
+  }).contributes.configuration.properties;
+
+  it('offers sameTab (the default) and newTab, each described', () => {
+    const p = props['margin.links.openIn']!;
+    expect(p.enum).toEqual(['sameTab', 'newTab']);
+    expect(p.enumDescriptions).toEqual([
+      'Linked pages open in the preview tab, which the next page replaces (follows workbench.editor.enablePreview)',
+      'Every linked page opens in its own tab',
+    ]);
+    expect(p.default).toBe('sameTab');
+  });
+
+  it('the README lists the setting', () => {
+    expect(readme).toMatch(/\| `margin\.links\.openIn` \| `sameTab` \|/);
+  });
+});

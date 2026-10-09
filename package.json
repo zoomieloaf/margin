@@ -209,6 +209,19 @@
           ],
           "default": "normal",
           "markdownDescription": "Width of the text column in Margin. Each file can have its own width (the width button in the toolbar, or **Margin: Change Page Width**). Exported PDF and HTML files keep their own print width."
+        },
+        "margin.links.openIn": {
+          "type": "string",
+          "enum": [
+            "sameTab",
+            "newTab"
+          ],
+          "enumDescriptions": [
+            "Linked pages open in the preview tab, which the next page replaces (follows workbench.editor.enablePreview)",
+            "Every linked page opens in its own tab"
+          ],
+          "default": "sameTab",
+          "markdownDescription": "Where a link clicked in Margin opens its page. Ctrl+click (Cmd+click on macOS) does the opposite."
         }
       }
     },

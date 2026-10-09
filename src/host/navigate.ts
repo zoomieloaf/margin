@@ -2,10 +2,19 @@ import * as vscode from 'vscode';
 import type { Mode } from '../bridge/messages';
 import { folderIndex, isMarkdownPath, joinLinkPath, lineFragment, linkTarget, pageTitle, type LinkTarget } from './links';
 
+/** Where a followed link opens: in a tab of its own, or the preview tab; in the column of the page the link is on. */
+export interface LinkTab {
+  newTab: boolean;
+  viewColumn?: vscode.ViewColumn;
+}
+
+/** The show options of a followed link (VS Code still pins it when workbench.editor.enablePreview is off). */
+export const tabOptions = (tab: LinkTab): vscode.TextDocumentShowOptions => ({ preview: !tab.newTab, viewColumn: tab.viewColumn });
+
 /** What following a link needs from the editor provider. */
 export interface Pages {
   /** Opens `uri` in Margin, or reveals the Margin editor already showing it, and scrolls to `anchor`. */
-  openPage(uri: vscode.Uri, opts: { mode: Mode; anchor?: string }): Promise<void>;
+  openPage(uri: vscode.Uri, opts: { mode: Mode; anchor?: string; tab?: LinkTab }): Promise<void>;
   /** A warning notification with buttons (the integration tests replace it). */
   warn(message: string, ...items: string[]): Thenable<string | undefined>;
 }
@@ -28,7 +37,7 @@ const statOf = (uri: vscode.Uri) => Promise.resolve(vscode.workspace.fs.stat(uri
  * Follows a link clicked in Margin: Markdown pages open in Margin (scrolled to the `#heading`),
  * a folder opens its README or index page, other files open in VS Code, web links in the browser.
  */
-export async function followLink(document: vscode.TextDocument, href: string, pages: Pages): Promise<void> {
+export async function followLink(document: vscode.TextDocument, href: string, pages: Pages, tab: LinkTab = { newTab: false }): Promise<void> {
   const target = linkTarget(href);
   if (target.kind === 'external') {
     await vscode.env.openExternal(vscode.Uri.parse(target.href));
@@ -37,7 +46,7 @@ export async function followLink(document: vscode.TextDocument, href: string, pa
   if (target.kind !== 'file') return;
   let uri = linkUri(document, target);
   const stat = await statOf(uri);
-  if (!stat) return missingLink(href, uri, pages);
+  if (!stat) return missingLink(href, uri, pages, tab);
   if (stat.type & vscode.FileType.Directory) {
     const entries = await vscode.workspace.fs.readDirectory(uri);
     const index = folderIndex(entries.filter(([, type]) => type & vscode.FileType.File).map(([name]) => name));
@@ -48,17 +57,17 @@ export async function followLink(document: vscode.TextDocument, href: string, pa
     uri = vscode.Uri.joinPath(uri, index);
   }
   if (isMarkdownPath(uri.path)) {
-    await pages.openPage(uri, { mode: 'preview', anchor: target.fragment });
+    await pages.openPage(uri, { mode: 'preview', anchor: target.fragment, tab });
     return;
   }
   // Other files ignore the fragment, except GitHub's `#L10` line links.
   const line = target.fragment ? lineFragment(target.fragment) : null;
-  const options: vscode.TextDocumentShowOptions | undefined = line ? { selection: new vscode.Range(line - 1, 0, line - 1, 0) } : undefined;
+  const options: vscode.TextDocumentShowOptions = { ...tabOptions(tab), ...(line ? { selection: new vscode.Range(line - 1, 0, line - 1, 0) } : {}) };
   await vscode.commands.executeCommand('vscode.open', uri, options);
 }
 
 /** A link to a file that isn't there: says so, and offers to create a Markdown page. */
-async function missingLink(href: string, uri: vscode.Uri, pages: Pages): Promise<void> {
+async function missingLink(href: string, uri: vscode.Uri, pages: Pages, tab: LinkTab): Promise<void> {
   const markdown = isMarkdownPath(uri.path);
   const choice = await pages.warn(`\`${href}\` doesn't exist`, ...(markdown ? [CREATE_PAGE] : []));
   if (choice !== CREATE_PAGE) return;
@@ -67,7 +76,7 @@ async function missingLink(href: string, uri: vscode.Uri, pages: Pages): Promise
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, '..'));
     await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(`# ${pageTitle(uri.path)}\n`));
   }
-  await pages.openPage(uri, { mode: 'edit' });
+  await pages.openPage(uri, { mode: 'edit', tab });
 }
 
 /** Which local links in the document point nowhere, and where each one points (for the hover title). */
