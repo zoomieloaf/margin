@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Margin M↓ icons</title>
+<style>
+  :root { --bg: #ffffff; --fg: #1d1f24; --muted: #6b7079; --line: #e6e8eb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px 24px 64px; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 28px; color: var(--muted); }
+  .opt { display: grid; grid-template-columns: 220px 1fr; gap: 24px; padding: 24px 0; border-top: 1px solid var(--line); align-items: center; }
+  .opt h2 { font-size: 16px; margin: 0 0 4px; }
+  .opt p { margin: 0; color: var(--muted); }
+  .sizes { display: flex; flex-wrap: wrap; gap: 12px; }
+  .pane { display: flex; align-items: flex-end; gap: 18px; padding: 18px 22px; border-radius: 10px; }
+  .pane.dark { background: #1e1e1e; }
+  .pane.light { background: #f3f3f3; }
+  .pane svg { display: block; }
+  @media (max-width: 760px) { .opt { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>Margin — M↓ icons</h1>
+<p class="lead">The M↓ idea in B's clean geometric style. Each at 128, 64, 32 and 16 px on light and dark backgrounds.</p>
+
+<template id="M1">
+  <!-- M1. Black M and a blue arrow, side by side, on white. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="56" fill="#ffffff"/>
+    <rect x="1" y="1" width="254" height="254" rx="55" fill="none" stroke="#d9dce1" stroke-width="2"/>
+    <g transform="translate(128 128) scale(.78) translate(-128 -128)" fill="none" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M34 182 V74 L86 146 L138 74 V182" stroke="#17191e"/>
+      <path d="M200 74 V178 M178 156 L200 180 L222 156" stroke="#3d63dd"/>
+    </g>
+  </svg>
+</template>
+
+<template id="M2">
+  <!-- M2. The M's right leg turns into the arrow. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="56" fill="#ffffff"/>
+    <rect x="1" y="1" width="254" height="254" rx="55" fill="none" stroke="#d9dce1" stroke-width="2"/>
+    <g transform="translate(128 128) scale(.84) translate(-128 -128)" fill="none" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M58 186 V70 L124 152 L190 70 V188" stroke="#17191e"/>
+      <path d="M162 162 L190 192 L218 162" stroke="#3d63dd"/>
+    </g>
+  </svg>
+</template>
+
+<template id="M3">
+  <!-- M3. The M's middle "V" drops down as the arrow. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="56" fill="#ffffff"/>
+    <rect x="1" y="1" width="254" height="254" rx="55" fill="none" stroke="#d9dce1" stroke-width="2"/>
+    <g transform="translate(128 128) scale(.88) translate(-128 -128)" fill="none" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M60 178 V62 L128 138 L196 62 V178" stroke="#17191e"/>
+      <path d="M128 138 V196 M104 172 L128 198 L152 172" stroke="#3d63dd"/>
+    </g>
+  </svg>
+</template>
+
+<template id="M4">
+  <!-- M4. M1 on a dark tile: white M, blue arrow. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="56" fill="#17191e"/>
+    <rect x="1" y="1" width="254" height="254" rx="55" fill="none" stroke="#3a3e47" stroke-width="2"/>
+    <g transform="translate(128 128) scale(.78) translate(-128 -128)" fill="none" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M34 182 V74 L86 146 L138 74 V182" stroke="#ffffff"/>
+      <path d="M200 74 V178 M178 156 L200 180 L222 156" stroke="#6b8cff"/>
+    </g>
+  </svg>
+</template>
+
+<template id="M5">
+  <!-- M5. M1 plus B's idea: the M's left stem is the blue margin rule, the arrow is blue too. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="56" fill="#ffffff"/>
+    <rect x="1" y="1" width="254" height="254" rx="55" fill="none" stroke="#d9dce1" stroke-width="2"/>
+    <g transform="translate(128 128) scale(.78) translate(-128 -128)" fill="none" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M34 74 L86 146 L138 74 V182" stroke="#17191e"/>
+      <path d="M34 182 V74" stroke="#3d63dd"/>
+      <path d="M200 74 V178 M178 156 L200 180 L222 156" stroke="#3d63dd"/>
+    </g>
+  </svg>
+</template>
+
+<div id="list"></div>
+
+<script>
+  const OPTIONS = [
+    ['M1', 'M1. M ↓', 'The classic Markdown mark, redrawn: one geometric M and a blue arrow, centred, same stroke weight.'],
+    ['M2', 'M2. The leg is the arrow', 'The M\'s right leg ends in the arrowhead: M and ↓ become one shape. Fits more boldly in the tile.'],
+    ['M3', 'M3. The V drops down', 'The M\'s middle V continues down into the arrow. The most "logo" of the five.'],
+    ['M4', 'M4. M ↓ dark', 'M1 on a dark tile with a white M and a lighter blue arrow. Stands out in light themes.'],
+    ['M5', 'M5. M ↓ with the margin', 'M1 with B\'s idea: the M\'s left stem is the blue margin rule, matching the arrow.'],
+  ];
+  const SIZES = [128, 64, 32, 16];
+  const list = document.getElementById('list');
+  for (const [id, title, desc] of OPTIONS) {
+    const svg = document.getElementById(id).content.querySelector('svg');
+    const panes = ['light', 'dark'].map((bg) => {
+      const pane = document.createElement('div');
+      pane.className = `pane ${bg}`;
+      for (const s of SIZES) {
+        const copy = svg.cloneNode(true);
+        copy.setAttribute('width', s);
+        copy.setAttribute('height', s);
+        pane.append(copy);
+      }
+      return pane;
+    });
+    const row = document.createElement('section');
+    row.className = 'opt';
+    row.innerHTML = `<div><h2>${title}</h2><p>${desc}</p></div><div class="sizes"></div>`;
+    row.querySelector('.sizes').append(...panes);
+    list.append(row);
+  }
+</script>
+</body>
+</html>

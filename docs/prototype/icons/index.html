@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Margin icon options</title>
+<style>
+  :root { --bg: #ffffff; --fg: #1d1f24; --muted: #6b7079; --line: #e6e8eb; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px 24px 64px; background: var(--bg); color: var(--fg); font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  p.lead { margin: 0 0 28px; color: var(--muted); }
+  .opt { display: grid; grid-template-columns: 220px 1fr; gap: 24px; padding: 24px 0; border-top: 1px solid var(--line); align-items: center; }
+  .opt h2 { font-size: 16px; margin: 0 0 4px; }
+  .opt p { margin: 0; color: var(--muted); }
+  .sizes { display: flex; gap: 0; flex-wrap: wrap; }
+  .pane { display: flex; align-items: flex-end; gap: 18px; padding: 18px 22px; }
+  .pane.dark { background: #1e1e1e; border-radius: 10px; }
+  .pane.light { background: #f3f3f3; border-radius: 10px; margin-right: 12px; }
+  .pane svg { display: block; }
+  @media (max-width: 760px) { .opt { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<h1>Margin — icon options</h1>
+<p class="lead">Each option at 128, 64, 32 and 16 px (the sizes the Marketplace, the Extensions view and tabs use), on VS Code's light and dark backgrounds.</p>
+
+<template id="A">
+  <!-- A. Notebook margin: a dark page, one red margin rule, a heading and three lines of text. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="56" fill="#17191e"/>
+    <rect x="78" y="0" width="8" height="256" fill="#ff5c5c"/>
+    <rect x="108" y="70" width="96" height="22" rx="11" fill="#ffffff"/>
+    <rect x="108" y="118" width="104" height="12" rx="6" fill="#ffffff" opacity=".55"/>
+    <rect x="108" y="146" width="88" height="12" rx="6" fill="#ffffff" opacity=".55"/>
+    <rect x="108" y="174" width="64" height="12" rx="6" fill="#ffffff" opacity=".55"/>
+  </svg>
+</template>
+
+<template id="B">
+  <!-- B. The M is the margin: a geometric M whose left stem is the coloured margin rule. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="56" fill="#ffffff"/>
+    <rect x="1" y="1" width="254" height="254" rx="55" fill="none" stroke="#d9dce1" stroke-width="2"/>
+    <path d="M70 190 V66" stroke="#3d63dd" stroke-width="26" stroke-linecap="round" fill="none"/>
+    <path d="M70 66 L128 146 L186 66 V190" stroke="#17191e" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </svg>
+</template>
+
+<template id="C">
+  <!-- C. A page on a calm blue tile: folded corner, margin rule, heading and text lines. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="56" fill="#3651c9"/>
+    <path d="M64 44 H162 L196 78 V212 H64 Z" fill="#ffffff"/>
+    <path d="M162 44 V78 H196 Z" fill="#c9d3fb"/>
+    <rect x="86" y="44" width="5" height="168" fill="#ff6b6b"/>
+    <rect x="104" y="94" width="66" height="14" rx="7" fill="#17191e"/>
+    <rect x="104" y="124" width="74" height="8" rx="4" fill="#9aa3b5"/>
+    <rect x="104" y="144" width="62" height="8" rx="4" fill="#9aa3b5"/>
+    <rect x="104" y="164" width="70" height="8" rx="4" fill="#9aa3b5"/>
+    <rect x="104" y="184" width="44" height="8" rx="4" fill="#9aa3b5"/>
+  </svg>
+</template>
+
+<template id="D">
+  <!-- D. Source to page: the left half shows a raw "#", the right half the rendered heading. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <defs><clipPath id="d-tile"><rect width="256" height="256" rx="56"/></clipPath></defs>
+    <g clip-path="url(#d-tile)">
+      <rect width="256" height="256" fill="#ffffff"/>
+      <rect width="112" height="256" fill="#17191e"/>
+      <g stroke="#8b93a3" stroke-width="12" stroke-linecap="round">
+        <path d="M46 92 L38 164"/><path d="M74 92 L66 164"/>
+        <path d="M28 114 H84"/><path d="M24 142 H80"/>
+      </g>
+      <rect x="138" y="96" width="82" height="26" rx="13" fill="#17191e"/>
+      <rect x="138" y="140" width="88" height="11" rx="5.5" fill="#b8bec9"/>
+      <rect x="138" y="164" width="64" height="11" rx="5.5" fill="#b8bec9"/>
+      <rect x="108" y="0" width="8" height="256" fill="#3d63dd"/>
+    </g>
+  </svg>
+</template>
+
+<template id="E">
+  <!-- E. Caret in the margin: a white page with one text caret where you start typing. -->
+  <svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="56" fill="#f7f7f8"/>
+    <rect x="1" y="1" width="254" height="254" rx="55" fill="none" stroke="#d9dce1" stroke-width="2"/>
+    <rect x="66" y="72" width="104" height="24" rx="12" fill="#17191e"/>
+    <rect x="66" y="122" width="124" height="12" rx="6" fill="#aab0bb"/>
+    <rect x="66" y="150" width="96" height="12" rx="6" fill="#aab0bb"/>
+    <rect x="172" y="140" width="10" height="44" rx="5" fill="#3d63dd"/>
+  </svg>
+</template>
+
+<div id="list"></div>
+
+<script>
+  const OPTIONS = [
+    ['A', 'A. Notebook margin', 'Dark page with one red margin rule, a heading and three lines. The name drawn literally; reads at 16 px as "dark tile with a red line".'],
+    ['B', 'B. The M is the margin', 'One geometric M on white. Its left stem is blue: the margin rule and the letter are the same stroke.'],
+    ['C', 'C. Page', 'A white page with a folded corner and a margin rule on a calmer blue. The most "document" of the five.'],
+    ['D', 'D. Source → page', 'Left: the raw # you type. Right: the rendered heading. A blue rule between them. The product in one picture.'],
+    ['E', 'E. Caret', 'A light page with a heading, two lines and a blue text caret: "you can type right here". The quietest option.'],
+  ];
+  const SIZES = [128, 64, 32, 16];
+  const list = document.getElementById('list');
+  for (const [id, title, desc] of OPTIONS) {
+    const svg = document.getElementById(id).content.querySelector('svg');
+    const panes = ['light', 'dark'].map((bg) => {
+      const pane = document.createElement('div');
+      pane.className = `pane ${bg}`;
+      for (const s of SIZES) {
+        const copy = svg.cloneNode(true);
+        copy.setAttribute('width', s);
+        copy.setAttribute('height', s);
+        // Unique clip-path ids per copy, so every size keeps its rounded corners.
+        copy.querySelectorAll('clipPath').forEach((c) => {
+          const nid = `${c.id}-${bg}-${s}`;
+          copy.querySelectorAll(`[clip-path="url(#${c.id})"]`).forEach((g) => g.setAttribute('clip-path', `url(#${nid})`));
+          c.id = nid;
+        });
+        pane.append(copy);
+      }
+      return pane;
+    });
+    const row = document.createElement('section');
+    row.className = 'opt';
+    row.innerHTML = `<div><h2>${title}</h2><p>${desc}</p></div><div class="sizes"></div>`;
+    row.querySelector('.sizes').append(...panes);
+    list.append(row);
+  }
+</script>
+</body>
+</html>

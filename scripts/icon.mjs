@@ -1,5 +1,5 @@
-// Renders media/icon.png (256×256) with a locally installed Chromium browser.
-import { existsSync, mkdirSync } from 'node:fs';
+// Renders media/icon.png (256×256) from media/icon.svg with a locally installed Chromium browser.
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import puppeteer from 'puppeteer-core';
 
 const executablePath = [
@@ -12,12 +12,9 @@ const executablePath = [
 ].find((p) => p && existsSync(p));
 if (!executablePath) throw new Error('No Chromium browser found; set MARGIN_BROWSER.');
 
-const html = `<!doctype html><html><body style="margin:0;background:transparent">
-<div style="width:256px;height:256px;border-radius:56px;background:linear-gradient(150deg,#4a66e8,#2c44b8);
-display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
-  <div style="position:absolute;left:44px;top:58px;bottom:58px;width:10px;border-radius:5px;background:rgba(255,255,255,.35)"></div>
-  <div style="font:700 120px/1 'Segoe UI',system-ui,sans-serif;color:#fff;letter-spacing:-6px;margin-left:22px">M<span style="font-size:96px;opacity:.9">↓</span></div>
-</div></body></html>`;
+// The source is media/icon.svg; the Marketplace needs a PNG (at least 128×128).
+const svg = readFileSync('media/icon.svg', 'utf8');
+const html = `<!doctype html><html><body style="margin:0;background:transparent">${svg}</body></html>`;
 
 mkdirSync('media', { recursive: true });
 const browser = await puppeteer.launch({ executablePath, headless: true });
