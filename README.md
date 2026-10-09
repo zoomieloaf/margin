@@ -1,89 +1,109 @@
-# Margin — Markdown, edited the way you read it
+# Edit Markdown as a page. Commit plain text.
 
-Margin opens your `.md` files as a clean, rendered document inside VS Code, Cursor, Windsurf and VSCodium. Press **Ctrl+E** to edit in place with Notion-style controls. Your file stays plain Markdown, and it changes **only where you edited**, so git diffs stay small.
+Margin turns the Markdown in your repo into a Notion-style knowledge base. Your `.md` files open as clean pages you edit in place, with linked pages, slash commands and AI. Underneath, they stay plain Markdown files in git, and only the lines you change change.
 
-## Features
+<!-- Demo GIF goes here once the repository is public (the Marketplace needs an absolute image URL). -->
 
-- **Preview, Edit and Markdown modes in one tab.** Switch with Ctrl/Cmd+E or the toggle in the toolbar. Double-click any text in Preview to start editing right there.
-- **Selection menu.** Select text to get a menu for turning a block into a heading, list, quote or callout. It also has bold, italic, strikethrough, inline code, highlight (`==text==`) and links.
-- **Toolbar** with every formatting action, block types, an outline toggle and export.
-- **Slash menu.** Type `/` on an empty line to insert headings, lists, to-dos, quotes, callouts, code blocks, tables, dividers or a Mermaid diagram. Each item shows its Markdown syntax.
-- **Markdown shortcuts while typing.** `#`, `##`, `-`, `1.`, `>`, `[]`, ```` ``` ```` and `---` each convert the line as you type.
-- **Block handles.** Hover a block, drag `⋮⋮` to move it, click it to duplicate, move or delete, or use `+` to add a block below.
-- **Tables.** Tab and Shift+Tab move between cells, and Tab in the last cell adds a row. Enter moves to the cell below and adds a row at the end. The block menu (`⋮⋮`) adds a row below or a column on the right, and deletes rows or columns.
-- **Links between your docs work like pages in a wiki.** Click a link to `./setup.md`, `../guides/` or `/docs/faq.md#install` and the page opens in Margin, in Preview, scrolled to that heading. A link to a folder opens its `README.md` or `index.md`. A linked page opens in the preview tab, which the next one replaces, so clicking through a wiki doesn't pile up tabs; editing a page keeps its tab. Ctrl+click (Cmd+click on macOS) opens a page in a tab of its own, or set `margin.links.openIn` to `newTab` to make that the default (Ctrl+click then uses the preview tab).
-- **Back and Forward.** Your mouse's back and forward buttons and Alt+Left take you back to the page you came from, like VS Code's Go Back. Turn on `margin.toolbar.backForward` for ← and → buttons in the toolbar. After a jump to a `#section` on the same page, Back first scrolls back to where you were.
-- **Broken links are easy to spot.** A link to a file that doesn't exist gets a red wavy underline, and hovering any link to a file shows where it points. Click a broken link to a `.md` page and choose **Create page** to start it, with a title made from the file name.
-- **Click to open, in Edit mode too.** A click on a link opens it; dragging across a link still selects text. To change a link's text, click just after it or move there with the arrow keys. Hover a link while editing to get a small card with **Open**, **Open in new tab** (**Open in this tab** with `newTab`), **Edit link** and **Copy link**.
-- **AI actions on your selection.** Improve writing, Shorten, Make longer, Fix spelling & grammar, Translate, Summarize, Continue writing, or Ask AI with your own instruction. Find them under **AI** in the toolbar, **✨ AI** in the selection menu, or `/ai` in the slash menu. With GitHub Copilot in VS Code, the answer streams in below your selection as a suggestion: **Accept** replaces the selection in one undo step, **Insert below** keeps it, **Try again** asks again and **Discard** (or Esc) leaves your file untouched. Without an AI model in the editor (in Cursor, say), Margin copies the prompt and opens a chat; paste the answer back with Ctrl+V and it becomes formatted blocks.
-- **Page width.** Narrow, normal, wide or full width for the text, from the toolbar or `margin.pageWidth`; each file can keep its own.
-- **Outline panel** with the current section, word count, reading time and task progress.
-- **GitHub callouts** (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) and to-do checkboxes you can click even in Preview.
-- **Export.** Export to **PDF** using the Edge or Chrome already on your machine, with nothing to download. Export to **HTML** as a single file. **Copy as rich text** for Slack, email or Confluence, or **copy as Markdown**.
-- **Follows your theme:** light, dark and high contrast.
+## What you get
 
-## Your Markdown stays yours
+**Write like Notion**
 
-Margin never rewrites your file. Blocks you didn't touch are written back byte-for-byte, including their spacing, list markers, emphasis style and line endings. An edited block is rewritten in the style the file already uses. Margin doesn't offer editing for frontmatter, raw HTML, footnote definitions or math; it shows them read-only and keeps them exactly as written. Use Markdown mode to change them.
+- Edit right on the page; ⌘E / Ctrl+E switches between Preview and Edit
+- Slash menu, selection menu, drag-and-drop blocks
+- Callouts, tables, checkboxes, Mermaid diagrams
+- AI on any selection: improve, shorten, translate, continue writing
 
-Margin's test suite opens and saves 33 real-world files, including the READMEs of popular projects and files with CRLF line endings, a byte-order mark or no final newline. Every file must come back byte-for-byte unchanged.
+**A knowledge base in your repo**
 
-## Getting started
+- Links between docs open like pages, and Back takes you back
+- Broken links are flagged, and a missing page is one click away
+- An outline, word count and task progress for every page
 
-1. Open any `.md` file.
-2. Click **Open in Margin** in the editor title bar. Or, when Margin asks once, choose to open Markdown files in Margin by default.
-3. To get the plain text editor back, use **Reopen in Text Editor** (the title bar icon or the Command Palette).
+**Plain Markdown underneath**
 
-Undo and redo use VS Code's own history, so Ctrl+Z works across Margin, the text editor and git.
+- Only the lines you edit change, so git diffs stay clean
+- Export to PDF or HTML, or copy as rich text for Slack and email
+- Follows your theme; works in VS Code, Cursor, Windsurf and VSCodium
+
+## Get started
+
+1. Install Margin from the VS Code Marketplace, or from Open VSX for Cursor, Windsurf and VSCodium.
+2. Open any `.md` file and click **Open in Margin** at the top right of the editor. To open every Markdown file in Margin, accept when Margin offers it, or right-click a file → Open With… → Configure default editor.
+3. Press ⌘E / Ctrl+E to start editing, or double-click any text.
+
+Undo is VS Code's own history, so ⌘Z / Ctrl+Z works across Margin, the text editor and git. **Reopen in Text Editor** gives you the raw file at any time.
 
 ## Keyboard shortcuts
 
 | Action | Windows / Linux | macOS |
 | --- | --- | --- |
-| Toggle Preview / Edit | Ctrl+E | Cmd+E |
-| Bold / Italic | Ctrl+B / Ctrl+I | Cmd+B / Cmd+I |
-| Strikethrough | Ctrl+Shift+X | Cmd+Shift+X |
-| Highlight | Ctrl+Shift+H | Cmd+Shift+H |
-| Inline code | Ctrl+\` | Cmd+\` |
-| Link | Ctrl+K | Cmd+K |
-| Open a link (Preview and Edit) | Click | Click |
-| Open a link in a new tab (the opposite of `margin.links.openIn`) | Ctrl+click | Cmd+click |
-| Back: an in-page jump first, then the previous page (VS Code's Go Back) | Alt+Left (Ctrl+Alt+- on Linux), mouse back button | Ctrl+-, mouse back button |
-| Forward (VS Code's Go Forward) | Alt+Right (Ctrl+Shift+- on Linux), mouse forward button | Ctrl+Shift+-, mouse forward button |
-| Line break inside a block | Shift+Enter | Shift+Enter |
-| Undo / redo (VS Code's history) | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z | Cmd+Z / Cmd+Shift+Z or Cmd+Y |
-| Indent / outdent list item | Tab / Shift+Tab | Tab / Shift+Tab |
-| Next / previous table cell (Tab in the last cell adds a row) | Tab / Shift+Tab | Tab / Shift+Tab |
-| Cell below in a table (adds a row at the end) | Enter | Enter |
+| Preview / Edit | Ctrl+E | ⌘E |
+| Bold / Italic | Ctrl+B / Ctrl+I | ⌘B / ⌘I |
+| Strikethrough | Ctrl+Shift+X | ⇧⌘X |
+| Highlight | Ctrl+Shift+H | ⇧⌘H |
+| Inline code | Ctrl+\` | ⌘\` |
+| Link | Ctrl+K | ⌘K |
+| Undo / Redo | Ctrl+Z / Ctrl+Y | ⌘Z / ⇧⌘Z |
+| Line break inside a block | Shift+Enter | ⇧Enter |
+| Indent / outdent a list item | Tab / Shift+Tab | Tab / ⇧Tab |
+| Back / Forward | Alt+← / Alt+→ (Linux: Ctrl+Alt+- / Ctrl+Shift+-) | ⌃- / ⌃⇧- |
+| Open a link in a new tab | Ctrl+click | ⌘-click |
 
-While you edit in Margin, these shortcuts belong to Margin: for example Ctrl+B makes text bold instead of toggling the sidebar, and Ctrl+K edits a link instead of starting a chord. Undo, redo, Ctrl+E and Go Back belong to Margin whenever it has focus. In Preview and Markdown mode, and everywhere else, the other shortcuts work as usual.
+While you edit, these keys belong to Margin: Ctrl+B makes text bold instead of toggling the sidebar, and Ctrl+K edits a link instead of starting a chord. In Preview and everywhere else they work as usual.
 
 ## Settings
 
-| Setting | Default | Description |
+| Setting | Default | What it does |
 | --- | --- | --- |
-| `margin.defaultMode` | `preview` | Mode used when a file opens: `preview` or `edit`. |
-| `margin.exportFolder` | *(empty)* | Folder for exported files, relative to the workspace. Empty means next to the Markdown file. |
-| `margin.export.theme` | `light` | `light`, `dark` or `auto` (follows VS Code). |
-| `margin.export.browserPath` | *(empty)* | Chrome, Edge or Chromium used for PDF export. Empty means detect automatically. |
+| `margin.defaultMode` | `preview` | Mode a file opens in: `preview` or `edit`. |
+| `margin.pageWidth` | `normal` | Text column: `narrow`, `normal`, `wide` or `full`. Each file can keep its own width (toolbar or **Margin: Change Page Width**). |
+| `margin.links.openIn` | `sameTab` | `sameTab`: linked pages reuse one tab as you click through. `newTab`: each page gets its own tab. Ctrl/⌘-click does the opposite. |
+| `margin.ai` | `auto` | Where AI actions go: `auto`, `editor`, `chatgpt`, `claude` or `off`. See Privacy. |
 | `margin.outline.visible` | `true` | Show the outline panel when there is room. |
-| `margin.pageWidth` | `normal` | Width of the text column: `narrow` (600 px), `normal` (716 px), `wide` (1000 px) or `full` (the whole editor). The width button in the toolbar, or **Margin: Change Page Width**, sets a width for one file. Exports keep their own print width. |
-| `margin.links.openIn` | `sameTab` | Where a clicked link opens its page. `sameTab`: in the preview tab, which the next linked page replaces (as `workbench.editor.enablePreview` allows; editing a page keeps its tab). `newTab`: every linked page gets its own tab. Ctrl+click (Cmd+click on macOS) does the opposite. |
-| `margin.toolbar.backForward` | `false` | Show Back and Forward buttons at the start of the toolbar. Alt+← / Alt+→ and the mouse side buttons work either way. |
-| `margin.ai` | `auto` | Where AI actions send text. `auto`: the editor's AI model (GitHub Copilot) when there is one, otherwise a chat. `editor`: only the editor's model. `chatgpt` or `claude`: copy the prompt and open that site. `off`: hide all AI actions. |
+| `margin.toolbar.backForward` | `false` | Show Back and Forward buttons in the toolbar. |
+| `margin.exportFolder` | *(empty)* | Folder for exports, relative to the workspace. Empty: next to the Markdown file. |
+| `margin.export.theme` | `light` | Colours of exported files: `light`, `dark` or `auto`. |
+| `margin.export.browserPath` | *(empty)* | Chrome, Edge or Chromium for PDF export. Empty: found automatically. |
 
 ## Privacy
 
-Margin makes no network requests of its own. Remote images in your documents load like in VS Code's Markdown preview. Margin collects no telemetry, and links open only when you click them.
+Margin makes no network requests of its own. Remote images in your documents load like in VS Code's Markdown preview. Margin collects no telemetry.
 
-Text leaves your machine only when you run an AI action, and only the text that action needs: your selection (Continue writing and Ask AI also send the document before the cursor). Where it goes depends on `margin.ai`:
+Text leaves your machine only when you run an AI action, and only what that action needs. The first time, Margin tells you where it is going and asks first:
 
-- **The editor's AI model:** to GitHub Copilot via VS Code (or the model your editor provides), through VS Code's language model API, under your Copilot account and its terms.
-- **The editor's chat:** Margin copies the prompt to your clipboard and opens Copilot Chat in VS Code, or a new chat in Cursor, where you paste it. Nothing is sent until you press Enter there.
-- **chatgpt.com or claude.ai:** Margin copies the prompt to your clipboard and opens the site in your browser. A short prompt goes in the address, and the site may send it right away; a long one waits for you to paste it.
-- **`off`:** AI actions are hidden and nothing is ever sent.
+- With GitHub Copilot in VS Code, the text goes to Copilot through VS Code, under your Copilot account.
+- Otherwise a chat opens with the prompt: Copilot Chat in VS Code, a new chat in Cursor, or chatgpt.com or claude.ai in your browser. Nothing is sent until you press Enter there.
+- `margin.ai: off` hides AI actions completely.
 
-The first time an AI action would send text to a place, Margin says where and asks you to continue or cancel.
+## Guide
+
+### Your file stays yours
+
+Blocks you didn't touch are written back byte-for-byte: spacing, list markers, emphasis style and line endings. An edited block is written in the style the file already uses. Frontmatter, raw HTML, footnote definitions and math are shown read-only and kept exactly as written; edit them in Markdown mode. The test suite opens and saves 33 real-world files, popular READMEs among them, and every one must come back unchanged.
+
+### Writing
+
+- Type `/` on an empty line for headings, lists, to-dos, quotes, callouts, code, tables, dividers and diagrams. Each item shows its Markdown.
+- Markdown shortcuts work as you type: `#`, `-`, `1.`, `>`, `[]`, `` ``` `` and `---`.
+- Hover a block and drag its handle to move it, or click the handle to duplicate or delete it.
+- In tables, Tab moves to the next cell, and Tab in the last cell adds a row. The block handle adds a row below or a column on the right, and deletes rows or columns.
+- GitHub callouts (`> [!NOTE]`, `[!TIP]`, `[!WARNING]`…) and checkboxes you can tick even in Preview.
+
+### Links and pages
+
+- A link to `./setup.md`, `../guides/` or `/docs/faq.md#install` opens that page in Margin, scrolled to the heading. A folder opens its `README.md` or `index.md`.
+- A click opens a link, in Edit mode too. To edit a link's text, click just after it; hovering shows Open, Edit link and Copy link.
+- Linked pages reuse one tab while you click through, unless you change `margin.links.openIn`; editing a page keeps its tab.
+- A link to a missing file gets a red underline. Click it to create the page.
+- Back (Alt+←, ⌃- on macOS, or the mouse's back button) returns from a `#section` jump first, then to the previous page.
+
+### AI
+
+Improve writing, Shorten, Make longer, Fix spelling and grammar, Translate, Summarize, Continue writing, or Ask AI with your own instruction: from AI in the toolbar, ✨ in the selection menu, or `/ai`. With Copilot the answer appears under your text; Accept replaces it in one undo step. Elsewhere, paste the chat's answer back and it turns into formatted blocks.
+
+### Export
+
+PDF uses the Edge or Chrome already on your machine, so there's nothing to download. HTML is a single file. Copy as rich text for Slack, email or Confluence, or copy as Markdown.
 
 ## Development
 
@@ -99,4 +119,4 @@ Press F5 in VS Code to start an Extension Development Host.
 
 ## License
 
-MIT
+Free and MIT licensed. Built on ProseMirror and the unified/micromark Markdown tools; their licenses are in `THIRD-PARTY-NOTICES.txt`.
