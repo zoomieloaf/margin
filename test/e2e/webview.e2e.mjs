@@ -29,14 +29,14 @@ const browser = await puppeteer.launch({ executablePath, headless: true, args: [
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 let failures = 0;
 
-/** `settings`: `ai` (the margin.ai setting), `aiEditor` (the editor has a model) and `pageWidth` (a PageWidthState) for the init message; `viewport`: the page size. */
+/** `settings`: `ai` (the margin.ai setting), `aiEditor` (the editor has a model), `pageWidth` (a PageWidthState) and `linksOpenIn` for the init message; `viewport`: the page size. */
 async function open(text, mode = 'edit', settings = {}, viewport = { width: 1100, height: 800 }) {
   const page = await browser.newPage();
   await page.setViewport(viewport);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.evaluateOnNewDocument((t, m, s) => { window.__initialText = t; window.__mode = m; window.__ai = s.ai; window.__aiEditor = s.aiEditor; window.__pageWidth = s.pageWidth; }, text, mode, settings);
+  await page.evaluateOnNewDocument((t, m, s) => { window.__initialText = t; window.__mode = m; window.__ai = s.ai; window.__aiEditor = s.aiEditor; window.__pageWidth = s.pageWidth; window.__linksOpenIn = s.linksOpenIn; }, text, mode, settings);
   await page.goto(harness);
   await page.waitForSelector('.ProseMirror');
   await page.waitForSelector('.app[data-mode]'); // the init message has been applied
@@ -410,7 +410,7 @@ await test('hovering a link in Edit mode shows a card: Open, Copy link and Edit 
   await hoverLink(page, 0);
   assert.equal(await page.$eval('.linkcard .lc-href', (e) => e.textContent), './setup.md');
   const buttons = await page.$$eval('.linkcard button', (bs) => bs.map((b) => [b.textContent.trim(), b.title !== '']));
-  assert.deepEqual(buttons, [['Open', true], ['Edit link', true], ['Copy link', true]]);
+  assert.deepEqual(buttons, [['Open', true], ['Open in new tab', true], ['Edit link', true], ['Copy link', true]]);
 
   await page.click('.linkcard [data-act="copy"]');
   assert.deepEqual(await page.evaluate(() => window.copied), ['./setup.md']);
@@ -997,6 +997,164 @@ await test('page width: the width change is animated, except with reduced motion
   await fromHost(page, { type: 'setPageWidth', ...widthState('wide', 'wide') });
   await sleep(20);
   assert.equal((await measure(page)).column, 1000, 'at once');
+  await page.close();
+});
+
+// ---------------------------------------------------------------- back / forward and link tabs
+
+const navigations = (page) => page.evaluate(() => window.host.posted.filter((m) => m.type === 'navigate').map((m) => m.direction));
+const openLinkMessages = (page) => page.evaluate(() => window.host.posted.filter((m) => m.type === 'openLink'));
+const FILLER = Array.from({ length: 40 }, (_, i) => `Paragraph ${i + 1}.`).join('\n\n');
+const JUMP_DOC = `[Jump](#second-section)\n\n${FILLER}\n\n## Second section\n\n${FILLER}\n`;
+const scrollTop = (page) => page.$eval('.scroll', (e) => e.scrollTop);
+
+await test('the toolbar Back and Forward post navigate; their tooltips name VS Code\'s keys', async () => {
+  for (const mode of ['preview', 'edit', 'source']) {
+    const page = await open('# Title\n\nText.\n', mode);
+    const buttons = await page.$$eval('.toolbar [data-act="back"], .toolbar [data-act="forward"]', (bs) => bs.map((b) => [b.dataset.act, b.dataset.tip, b.dataset.key, b.getAttribute('aria-label'), b.offsetWidth > 0]));
+    assert.deepEqual(buttons, [['back', 'Back', 'Alt+←', 'Back', true], ['forward', 'Forward', 'Alt+→', 'Forward', true]], mode);
+    // They come first in the toolbar.
+    assert.equal(await page.$eval('.toolbar > :first-child', (e) => e.dataset.act), 'back');
+    await page.click('.toolbar [data-act="back"]');
+    await page.click('.toolbar [data-act="forward"]');
+    await sleep(50);
+    assert.deepEqual(await navigations(page), ['back', 'forward'], mode);
+    assert.equal(await page.evaluate(() => window.host.text), '# Title\n\nText.\n');
+    assert.deepEqual(page.errors, []);
+    await page.close();
+  }
+});
+
+await test('the mouse back and forward buttons post navigate back and forward', async () => {
+  const page = await open('# Title\n\nText.\n', 'preview');
+  const url = page.url();
+  const at = await charXY(page, '.ProseMirror p', 0, 2);
+  await page.mouse.click(at.x, at.y, { button: 'back' });
+  await sleep(50);
+  assert.deepEqual(await navigations(page), ['back']);
+  await page.mouse.click(at.x, at.y, { button: 'forward' });
+  await sleep(50);
+  assert.deepEqual(await navigations(page), ['back', 'forward']);
+  assert.equal(page.url(), url);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('Back after an in-page #jump scrolls back without navigate; the next Back posts navigate', async () => {
+  const page = await open(JUMP_DOC, 'preview');
+  assert.equal(await scrollTop(page), 0);
+  await page.click('.ProseMirror a');
+  await sleep(900);
+  assert.ok((await scrollTop(page)) > 500, 'jumped down');
+  await page.click('.toolbar [data-act="back"]');
+  await sleep(900);
+  assert.equal(await scrollTop(page), 0, 'back where the link was');
+  assert.deepEqual(await navigations(page), []);
+  await page.click('.toolbar [data-act="back"]');
+  await sleep(50);
+  assert.deepEqual(await navigations(page), ['back']);
+
+  // The mouse back button and Alt+Left take the same path.
+  await page.click('.ProseMirror a');
+  await sleep(900);
+  const at = await page.$eval('.scroll', (e) => { const r = e.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + 200 }; });
+  await page.mouse.click(at.x, at.y, { button: 'back' });
+  await sleep(900);
+  assert.equal(await scrollTop(page), 0, 'mouse back');
+  await page.click('.ProseMirror a');
+  await sleep(900);
+  await page.keyboard.down('Alt');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.up('Alt');
+  await sleep(900);
+  assert.equal(await scrollTop(page), 0, 'Alt+Left');
+  assert.deepEqual(await navigations(page), ['back']);
+  await page.keyboard.down('Alt');
+  await page.keyboard.press('ArrowLeft');
+  await page.keyboard.up('Alt');
+  await sleep(50);
+  assert.deepEqual(await navigations(page), ['back', 'back']);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('in-page jumps are forgotten when the document changes', async () => {
+  const page = await open(JUMP_DOC, 'preview');
+  await page.click('.ProseMirror a');
+  await sleep(900);
+  await fromHost(page, { type: 'reset', text: JUMP_DOC.replace('Jump', 'Go'), version: 1 });
+  await sleep(50);
+  await page.click('.toolbar [data-act="back"]');
+  await sleep(50);
+  assert.deepEqual(await navigations(page), ['back'], 'after a reset');
+
+  // An edit too (Edit mode: a plain click on the link still jumps).
+  await page.evaluate(() => window.postMessage({ type: 'setMode', mode: 'edit' }, '*'));
+  await sleep(50);
+  const link = await charXY(page, '.ProseMirror a', 0, 1);
+  await page.mouse.click(link.x, link.y);
+  await sleep(900);
+  assert.ok((await scrollTop(page)) > 500, 'jumped down');
+  await clickChar(page, '.ProseMirror p', 41, 3);
+  await page.keyboard.type('x');
+  await sleep(50);
+  await page.click('.toolbar [data-act="back"]');
+  await sleep(50);
+  assert.deepEqual(await navigations(page), ['back', 'back'], 'after an edit');
+  await page.close();
+});
+
+await test('Ctrl+click opens a link in the other kind of tab than margin.links.openIn says', async () => {
+  for (const [setting, ctrl] of [[undefined, true], ['sameTab', true], ['newTab', false]]) {
+    const page = await open(LINKS, 'preview', { linksOpenIn: setting });
+    const at = await charXY(page, '.ProseMirror a', 0, 2);
+    await page.mouse.click(at.x, at.y);
+    await sleep(600);
+    await page.keyboard.down(mod);
+    await page.mouse.click(at.x, at.y);
+    await page.keyboard.up(mod);
+    await sleep(50);
+    assert.deepEqual(await openLinkMessages(page), [{ type: 'openLink', href: './setup.md' }, { type: 'openLink', href: './setup.md', newTab: ctrl }], String(setting));
+    await page.close();
+  }
+  // In Edit mode too, and the file is untouched.
+  const page = await open(LINKS);
+  const at = await charXY(page, '.ProseMirror a', 1, 1);
+  await page.keyboard.down(mod);
+  await page.mouse.click(at.x, at.y);
+  await page.keyboard.up(mod);
+  await sleep(50);
+  assert.deepEqual(await openLinkMessages(page), [{ type: 'openLink', href: './gone.md#top', newTab: true }]);
+  assert.equal(await settle(page), LINKS);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('the link card has Open in new tab (Open in this tab with newTab); not for #anchors and web links', async () => {
+  const doc = 'See [setup](./setup.md), [top](#title) and [site](https://example.com).\n';
+  const page = await open(doc);
+  const other = () => page.$eval('.linkcard [data-act="open-other"]', (b) => [b.textContent.trim(), b.hidden, b.title]);
+  await hoverLink(page, 0);
+  assert.deepEqual(await other(), ['Open in new tab', false, 'Open ./setup.md in a new tab']);
+  await page.click('.linkcard [data-act="open-other"]');
+  assert.deepEqual(await openLinkMessages(page), [{ type: 'openLink', href: './setup.md', newTab: true }]);
+  for (const n of [1, 2]) {
+    await page.mouse.move(5, 5);
+    await hoverLink(page, n);
+    assert.equal((await other())[1], true, `hidden for link ${n}`);
+  }
+  // The setting changes: the button follows.
+  await fromHost(page, { type: 'linksOpenIn', value: 'newTab' });
+  await page.mouse.move(5, 5);
+  await hoverLink(page, 0);
+  assert.deepEqual(await other(), ['Open in this tab', false, 'Open ./setup.md in the preview tab']);
+  await page.click('.linkcard [data-act="open-other"]');
+  await page.mouse.move(5, 5);
+  await hoverLink(page, 0);
+  await page.click('.linkcard [data-act="open"]');
+  assert.deepEqual((await openLinkMessages(page)).slice(1), [{ type: 'openLink', href: './setup.md', newTab: false }, { type: 'openLink', href: './setup.md' }]);
+  assert.equal(await settle(page), doc);
+  assert.deepEqual(page.errors, []);
   await page.close();
 });
 

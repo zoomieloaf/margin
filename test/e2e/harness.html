@@ -16,7 +16,7 @@ function acquireVsCodeApi() {
     setState() {}, getState() { return null; },
     postMessage(m) {
       window.host.posted.push(m);
-      if (m.type === 'ready') send({ type: 'init', text: window.host.text, version: window.host.version, mode: window.__mode ?? 'preview', settings: { outlineVisible: true, ai: window.__ai ?? 'auto', aiEditor: window.__aiEditor ?? true, pageWidth: window.__pageWidth?.width, pageWidthState: window.__pageWidth }, baseUri: location.href, anchor: window.__anchor });
+      if (m.type === 'ready') send({ type: 'init', text: window.host.text, version: window.host.version, mode: window.__mode ?? 'preview', settings: { outlineVisible: true, ai: window.__ai ?? 'auto', aiEditor: window.__aiEditor ?? true, pageWidth: window.__pageWidth?.width, pageWidthState: window.__pageWidth, linksOpenIn: window.__linksOpenIn }, baseUri: location.href, anchor: window.__anchor });
       if (m.type === 'edit') {
         if (m.version !== window.host.version) { send({ type: 'reset', text: window.host.text, version: window.host.version }); return; }
         window.host.text = applyEdits(window.host.text, m.edits);
