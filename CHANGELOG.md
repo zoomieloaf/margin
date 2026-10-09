@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.1
 
 - Margin no longer offers to become the default Markdown editor from a diff, or when you've already chosen an editor for Markdown files.
 - The link card no longer flashes when you come back to a page with the pointer resting on a link.
