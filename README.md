@@ -11,9 +11,10 @@ Margin opens your `.md` files as a clean, rendered document inside VS Code, Curs
 - **Markdown shortcuts while typing.** `#`, `##`, `-`, `1.`, `>`, `[]`, ```` ``` ```` and `---` each convert the line as you type.
 - **Block handles.** Hover a block, drag `⋮⋮` to move it, click it to duplicate, move or delete, or use `+` to add a block below.
 - **Tables.** Tab and Shift+Tab move between cells, and Tab in the last cell adds a row. Enter moves to the cell below and adds a row at the end. The block menu (`⋮⋮`) adds a row below or a column on the right, and deletes rows or columns.
-- **Links between your docs work like pages in a wiki.** Click a link to `./setup.md`, `../guides/` or `/docs/faq.md#install` and the page opens in Margin, in Preview, scrolled to that heading. A link to a folder opens its `README.md` or `index.md`. Alt+Left takes you back to the page you came from.
+- **Links between your docs work like pages in a wiki.** Click a link to `./setup.md`, `../guides/` or `/docs/faq.md#install` and the page opens in Margin, in Preview, scrolled to that heading. A link to a folder opens its `README.md` or `index.md`. A linked page opens in the preview tab, which the next one replaces, so clicking through a wiki doesn't pile up tabs; editing a page keeps its tab. Ctrl+click (Cmd+click on macOS) opens a page in a tab of its own, or set `margin.links.openIn` to `newTab` to make that the default (Ctrl+click then uses the preview tab).
+- **Back and Forward.** The ← and → buttons at the left of the toolbar, your mouse's back and forward buttons, and Alt+Left take you back to the page you came from, like VS Code's Go Back. After a jump to a `#section` on the same page, Back first scrolls back to where you were.
 - **Broken links are easy to spot.** A link to a file that doesn't exist gets a red wavy underline, and hovering any link to a file shows where it points. Click a broken link to a `.md` page and choose **Create page** to start it, with a title made from the file name.
-- **Click to open, in Edit mode too.** A click on a link opens it; dragging across a link still selects text. To change a link's text, click just after it or move there with the arrow keys. Hover a link while editing to get a small card with **Open**, **Edit link** and **Copy link**.
+- **Click to open, in Edit mode too.** A click on a link opens it; dragging across a link still selects text. To change a link's text, click just after it or move there with the arrow keys. Hover a link while editing to get a small card with **Open**, **Open in new tab** (**Open in this tab** with `newTab`), **Edit link** and **Copy link**.
 - **AI actions on your selection.** Improve writing, Shorten, Make longer, Fix spelling & grammar, Translate, Summarize, Continue writing, or Ask AI with your own instruction. Find them under **AI** in the toolbar, **✨ AI** in the selection menu, or `/ai` in the slash menu. With GitHub Copilot in VS Code, the answer streams in below your selection as a suggestion: **Accept** replaces the selection in one undo step, **Insert below** keeps it, **Try again** asks again and **Discard** (or Esc) leaves your file untouched. Without an AI model in the editor (in Cursor, say), Margin copies the prompt and opens a chat; paste the answer back with Ctrl+V and it becomes formatted blocks.
 - **Page width.** Narrow, normal, wide or full width for the text, from the toolbar or `margin.pageWidth`; each file can keep its own.
 - **Outline panel** with the current section, word count, reading time and task progress.
@@ -45,15 +46,17 @@ Undo and redo use VS Code's own history, so Ctrl+Z works across Margin, the text
 | Highlight | Ctrl+Shift+H | Cmd+Shift+H |
 | Inline code | Ctrl+\` | Cmd+\` |
 | Link | Ctrl+K | Cmd+K |
-| Open a link (Preview and Edit) | Click or Ctrl+click | Click or Cmd+click |
-| Back to the previous page (VS Code's Go Back) | Alt+Left | Ctrl+- |
+| Open a link (Preview and Edit) | Click | Click |
+| Open a link in a new tab (the opposite of `margin.links.openIn`) | Ctrl+click | Cmd+click |
+| Back: an in-page jump first, then the previous page (VS Code's Go Back) | Alt+Left (Ctrl+Alt+- on Linux), mouse back button | Ctrl+-, mouse back button |
+| Forward (VS Code's Go Forward) | Alt+Right (Ctrl+Shift+- on Linux), mouse forward button | Ctrl+Shift+-, mouse forward button |
 | Line break inside a block | Shift+Enter | Shift+Enter |
 | Undo / redo (VS Code's history) | Ctrl+Z / Ctrl+Y or Ctrl+Shift+Z | Cmd+Z / Cmd+Shift+Z or Cmd+Y |
 | Indent / outdent list item | Tab / Shift+Tab | Tab / Shift+Tab |
 | Next / previous table cell (Tab in the last cell adds a row) | Tab / Shift+Tab | Tab / Shift+Tab |
 | Cell below in a table (adds a row at the end) | Enter | Enter |
 
-While you edit in Margin, these shortcuts belong to Margin: for example Ctrl+B makes text bold instead of toggling the sidebar, and Ctrl+K edits a link instead of starting a chord. Undo, redo and Ctrl+E belong to Margin whenever it has focus. In Preview and Markdown mode, and everywhere else, the other shortcuts work as usual.
+While you edit in Margin, these shortcuts belong to Margin: for example Ctrl+B makes text bold instead of toggling the sidebar, and Ctrl+K edits a link instead of starting a chord. Undo, redo, Ctrl+E and Go Back belong to Margin whenever it has focus. In Preview and Markdown mode, and everywhere else, the other shortcuts work as usual.
 
 ## Settings
 
