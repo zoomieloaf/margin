@@ -3,6 +3,7 @@ import { isPageWidth, isWebviewMessage, PAGE_WIDTH_LABEL, PAGE_WIDTHS, type Page
 import type { TextEdit } from '../md/types';
 import { copyMarkdown, exportHtml, exportPdf } from './export/commands';
 import { MarginEditorProvider, VIEW_TYPE, type Session } from './provider';
+import { shouldOfferDefault } from './firstRun';
 
 const ASKED_KEY = 'margin.askedDefaultEditor';
 
@@ -149,8 +150,16 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ---------------------------------------------------------------- first run
   const maybeAsk = async (editor: vscode.TextEditor | undefined) => {
-    if (!editor || editor.document.languageId !== 'markdown' || editor.document.uri.scheme !== 'file') return;
-    if (context.globalState.get<boolean>(ASKED_KEY)) return;
+    if (!editor) return;
+    const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const offer = shouldOfferDefault({
+      languageId: editor.document.languageId,
+      scheme: editor.document.uri.scheme,
+      inDiff: tab?.input instanceof vscode.TabInputTextDiff,
+      associations: vscode.workspace.getConfiguration('workbench').get<Record<string, string>>('editorAssociations'),
+      asked: context.globalState.get<boolean>(ASKED_KEY) === true,
+    });
+    if (!offer) return;
     await context.globalState.update(ASKED_KEY, true);
     const choice = await vscode.window.showInformationMessage(
       'Open Markdown files in Margin by default? You can always switch back with "Reopen in Text Editor".',
