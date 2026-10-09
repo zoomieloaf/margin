@@ -20,15 +20,27 @@
   ],
   "keywords": [
     "markdown",
+    "markdown editor",
+    "markdown preview",
     "wysiwyg",
+    "live preview",
+    "notion",
+    "notion-style",
     "editor",
     "preview",
     "docs",
     "documentation",
+    "wiki",
     "knowledge base",
+    "notes",
     "writing",
+    "md",
+    "readme",
     "pdf",
-    "export"
+    "markdown pdf",
+    "export",
+    "slash commands",
+    "ai"
   ],
   "engines": {
     "node": ">=20",
