@@ -8,7 +8,7 @@ Margin turns the Markdown in your repo into a Notion-style knowledge base. Your 
 
 **Write like Notion**
 
-- Edit right on the page; ⌘E / Ctrl+E switches between Preview and Edit
+- Edit right on the page; Cmd+E / Ctrl+E switches between Preview and Edit
 - Slash menu, selection menu, drag-and-drop blocks
 - Callouts, tables, checkboxes, Mermaid diagrams
 - AI on any selection: improve, shorten, translate, continue writing
@@ -29,25 +29,25 @@ Margin turns the Markdown in your repo into a Notion-style knowledge base. Your 
 
 1. Install Margin from the VS Code Marketplace, or from Open VSX for Cursor, Windsurf and VSCodium.
 2. Open any `.md` file and click **Open in Margin** at the top right of the editor. To open every Markdown file in Margin, accept when Margin offers it, or right-click a file → Open With… → Configure default editor.
-3. Press ⌘E / Ctrl+E to start editing, or double-click any text.
+3. Press Cmd+E / Ctrl+E to start editing, or double-click any text.
 
-Undo is VS Code's own history, so ⌘Z / Ctrl+Z works across Margin, the text editor and git. **Reopen in Text Editor** gives you the raw file at any time.
+Undo is VS Code's own history, so Cmd+Z / Ctrl+Z works across Margin, the text editor and git. **Reopen in Text Editor** gives you the raw file at any time.
 
 ## Keyboard shortcuts
 
 | Action | Windows / Linux | macOS |
 | --- | --- | --- |
-| Preview / Edit | Ctrl+E | ⌘E |
-| Bold / Italic | Ctrl+B / Ctrl+I | ⌘B / ⌘I |
-| Strikethrough | Ctrl+Shift+X | ⇧⌘X |
-| Highlight | Ctrl+Shift+H | ⇧⌘H |
-| Inline code | Ctrl+\` | ⌘\` |
-| Link | Ctrl+K | ⌘K |
-| Undo / Redo | Ctrl+Z / Ctrl+Y | ⌘Z / ⇧⌘Z |
-| Line break inside a block | Shift+Enter | ⇧Enter |
-| Indent / outdent a list item | Tab / Shift+Tab | Tab / ⇧Tab |
-| Back / Forward | Alt+← / Alt+→ (Linux: Ctrl+Alt+- / Ctrl+Shift+-) | ⌃- / ⌃⇧- |
-| Open a link in a new tab | Ctrl+click | ⌘-click |
+| Preview / Edit | Ctrl+E | Cmd+E |
+| Bold / Italic | Ctrl+B / Ctrl+I | Cmd+B / Cmd+I |
+| Strikethrough | Ctrl+Shift+X | Cmd+Shift+X |
+| Highlight | Ctrl+Shift+H | Cmd+Shift+H |
+| Inline code | Ctrl+\` | Cmd+\` |
+| Link | Ctrl+K | Cmd+K |
+| Undo / Redo | Ctrl+Z / Ctrl+Y | Cmd+Z / Cmd+Shift+Z |
+| Line break inside a block | Shift+Enter | Shift+Enter |
+| Indent / outdent a list item | Tab / Shift+Tab | Tab / Shift+Tab |
+| Back / Forward | Alt+← / Alt+→ (Linux: Ctrl+Alt+- / Ctrl+Shift+-) | Ctrl+- / Ctrl+Shift+- |
+| Open a link in a new tab | Ctrl+click | Cmd+click |
 
 While you edit, these keys belong to Margin: Ctrl+B makes text bold instead of toggling the sidebar, and Ctrl+K edits a link instead of starting a chord. In Preview and everywhere else they work as usual.
 
@@ -57,7 +57,7 @@ While you edit, these keys belong to Margin: Ctrl+B makes text bold instead of t
 | --- | --- | --- |
 | `margin.defaultMode` | `preview` | Mode a file opens in: `preview` or `edit`. |
 | `margin.pageWidth` | `normal` | Text column: `narrow`, `normal`, `wide` or `full`. Each file can keep its own width (toolbar or **Margin: Change Page Width**). |
-| `margin.links.openIn` | `sameTab` | `sameTab`: linked pages reuse one tab as you click through. `newTab`: each page gets its own tab. Ctrl/⌘-click does the opposite. |
+| `margin.links.openIn` | `sameTab` | `sameTab`: linked pages reuse one tab as you click through. `newTab`: each page gets its own tab. Ctrl/Cmd+click does the opposite. |
 | `margin.ai` | `auto` | Where AI actions go: `auto`, `editor`, `chatgpt`, `claude` or `off`. See Privacy. |
 | `margin.outline.visible` | `true` | Show the outline panel when there is room. |
 | `margin.toolbar.backForward` | `false` | Show Back and Forward buttons in the toolbar. |
@@ -95,7 +95,7 @@ Blocks you didn't touch are written back byte-for-byte: spacing, list markers, e
 - A click opens a link, in Edit mode too. To edit a link's text, click just after it; hovering shows Open, Edit link and Copy link.
 - Linked pages reuse one tab while you click through, unless you change `margin.links.openIn`; editing a page keeps its tab.
 - A link to a missing file gets a red underline. Click it to create the page.
-- Back (Alt+←, ⌃- on macOS, or the mouse's back button) returns from a `#section` jump first, then to the previous page.
+- Back (Alt+←, Ctrl+- on macOS, or the mouse's back button) returns from a `#section` jump first, then to the previous page.
 
 ### AI
 
