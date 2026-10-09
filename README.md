@@ -2,11 +2,13 @@
 
 Margin turns the Markdown in your repo into a Notion-style knowledge base. Your `.md` files open as clean pages you edit in place, with linked pages, slash commands and AI. Underneath, they stay plain Markdown files in git, and only the lines you change change.
 
+<!-- github-only -->
 **[Install for VS Code](https://marketplace.visualstudio.com/items?itemName=zoomieloaf.margin)** · **[Install from Open VSX](https://open-vsx.org/extension/zoomieloaf/margin)** (Cursor, Windsurf, VSCodium) · [zoomieloaf.com/margin](https://zoomieloaf.com/margin/)
 
 ```sh
 code --install-extension zoomieloaf.margin
 ```
+<!-- /github-only -->
 
 ![Margin in VS Code: a Markdown page edited in place, a link followed to another page, and the git diff showing only the edited lines](media/demo.gif)
 

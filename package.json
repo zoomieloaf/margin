@@ -333,10 +333,8 @@
     "e2e": "npm run build && node test/e2e/webview.e2e.mjs",
     "typecheck": "tsc --noEmit",
     "icon": "node scripts/icon.mjs",
-    "package": "npm run build:prod && vsce package --no-dependencies",
+    "package": "npm run build:prod && node scripts/store-readme.mjs && vsce package --no-dependencies --readme-path README.store.md",
     "demo": "npm run package && node scripts/demo/record.mjs",
-    "publish:vscode": "vsce publish --no-dependencies",
-    "publish:ovsx": "ovsx publish --no-dependencies",
     "fixtures:make": "node scripts/make-fixtures.mjs",
     "fixtures:fetch": "node scripts/fetch-corpus.mjs",
     "release": "node scripts/release.mjs"
