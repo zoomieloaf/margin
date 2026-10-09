@@ -118,6 +118,15 @@ npm run demo              # records media/demo.gif in an isolated VS Code with t
 
 Press F5 in VS Code to start an Extension Development Host.
 
+### Releasing
+
+1. Raise `version` in `package.json` and add a `## <version>` section at the top of `CHANGELOG.md`.
+2. Commit, then tag and push the tag: `git tag v0.1.1 && git push origin v0.1.1`.
+
+The Release workflow then runs every test, builds the `.vsix`, publishes it to the VS Code Marketplace and Open VSX, and creates a GitHub release with the `.vsix` and the changelog notes. Run it from the Actions tab for a dry run that publishes nothing.
+
+It needs two repository secrets: `VSCE_PAT` (an Azure DevOps token with Marketplace → Manage, for all accessible organizations) and `OVSX_PAT` (an Open VSX access token). The Azure DevOps token expires after at most a year; when publishing fails with an authentication error, make a new one and replace the secret.
+
 ## License
 
 Free and MIT licensed. Built on ProseMirror and the unified/micromark Markdown tools; their licenses are in `THIRD-PARTY-NOTICES.txt`.

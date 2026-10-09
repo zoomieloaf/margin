@@ -1,0 +1,82 @@
+# Publishes Margin when a version tag is pushed:
+#   git tag v0.1.1 && git push origin v0.1.1
+# The tag must match "version" in package.json, and CHANGELOG.md needs a "## 0.1.1" section.
+# Run it by hand (Actions → Release → Run workflow) for a dry run: tests and the .vsix, nothing published.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Windows: the tests were written against Edge and VS Code on Windows, like the maintainer's machine.
+    runs-on: windows-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check the tag, package.json and CHANGELOG agree
+        id: version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version $version"; exit 1
+          fi
+          # The notes for this version: from its "## x.y.z" heading to the next "## ".
+          awk -v v="## $version" '$0==v {on=1; next} /^## / {on=0} on' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::CHANGELOG.md has no '## $version' section"; exit 1
+          fi
+
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run e2e
+      - run: npm run test:integration
+
+      - name: Build the .vsix
+        run: npm run package
+
+      - name: Publish to the VS Code Marketplace
+        if: github.ref_type == 'tag'
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx vsce publish --packagePath "margin-${{ steps.version.outputs.version }}.vsix"
+
+      - name: Publish to Open VSX
+        if: github.ref_type == 'tag'
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx ovsx publish "margin-${{ steps.version.outputs.version }}.vsix"
+
+      - name: GitHub release with the .vsix
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "margin-${{ steps.version.outputs.version }}.vsix" --title "Margin ${{ steps.version.outputs.version }}" --notes-file release-notes.md
+
+      - name: Keep the .vsix of a dry run
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: margin-${{ steps.version.outputs.version }}.vsix
+          path: margin-${{ steps.version.outputs.version }}.vsix
