@@ -3,7 +3,7 @@
   "displayName": "Margin — Markdown Editor",
   "description": "Notion-style Markdown editing for VS Code and Cursor: preview, edit in place, selection menu, slash commands, export to PDF. Your file stays plain Markdown.",
   "version": "0.1.0",
-  "publisher": "margin",
+  "publisher": "zoomieloaf",
   "license": "MIT",
   "private": true,
   "type": "module",
