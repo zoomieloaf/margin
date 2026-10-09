@@ -15,6 +15,7 @@ Margin opens your `.md` files as a clean, rendered document inside VS Code, Curs
 - **Broken links are easy to spot.** A link to a file that doesn't exist gets a red wavy underline, and hovering any link to a file shows where it points. Click a broken link to a `.md` page and choose **Create page** to start it, with a title made from the file name.
 - **Click to open, in Edit mode too.** A click on a link opens it; dragging across a link still selects text. To change a link's text, click just after it or move there with the arrow keys. Hover a link while editing to get a small card with **Open**, **Edit link** and **Copy link**.
 - **AI actions on your selection.** Improve writing, Shorten, Make longer, Fix spelling & grammar, Translate, Summarize, Continue writing, or Ask AI with your own instruction. Find them under **AI** in the toolbar, **✨ AI** in the selection menu, or `/ai` in the slash menu. With GitHub Copilot in VS Code, the answer streams in below your selection as a suggestion: **Accept** replaces the selection in one undo step, **Insert below** keeps it, **Try again** asks again and **Discard** (or Esc) leaves your file untouched. Without an AI model in the editor (in Cursor, say), Margin copies the prompt and opens a chat; paste the answer back with Ctrl+V and it becomes formatted blocks.
+- **Page width.** Narrow, normal, wide or full width for the text, from the toolbar or `margin.pageWidth`; each file can keep its own.
 - **Outline panel** with the current section, word count, reading time and task progress.
 - **GitHub callouts** (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) and to-do checkboxes you can click even in Preview.
 - **Export.** Export to **PDF** using the Edge or Chrome already on your machine, with nothing to download. Export to **HTML** as a single file. **Copy as rich text** for Slack, email or Confluence, or **copy as Markdown**.
@@ -63,6 +64,7 @@ While you edit in Margin, these shortcuts belong to Margin: for example Ctrl+B m
 | `margin.export.theme` | `light` | `light`, `dark` or `auto` (follows VS Code). |
 | `margin.export.browserPath` | *(empty)* | Chrome, Edge or Chromium used for PDF export. Empty means detect automatically. |
 | `margin.outline.visible` | `true` | Show the outline panel when there is room. |
+| `margin.pageWidth` | `normal` | Width of the text column: `narrow` (600 px), `normal` (716 px), `wide` (1000 px) or `full` (the whole editor). The width button in the toolbar, or **Margin: Change Page Width**, sets a width for one file. Exports keep their own print width. |
 | `margin.ai` | `auto` | Where AI actions send text. `auto`: the editor's AI model (GitHub Copilot) when there is one, otherwise a chat. `editor`: only the editor's model. `chatgpt` or `claude`: copy the prompt and open that site. `off`: hide all AI actions. |
 
 ## Privacy
