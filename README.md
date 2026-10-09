@@ -120,10 +120,16 @@ Press F5 in VS Code to start an Extension Development Host.
 
 ### Releasing
 
-1. Raise `version` in `package.json` and add a `## <version>` section at the top of `CHANGELOG.md`.
-2. Commit, then tag and push the tag: `git tag v0.1.1 && git push origin v0.1.1`.
+```bash
+npm run release              # 0.1.0 → 0.1.1
+npm run release -- minor     # 0.1.0 → 0.2.0
+npm run release -- major     # 0.1.0 → 1.0.0
+npm run release -- --dry-run # shows the version and changelog notes, changes nothing
+```
 
-The Release workflow then runs every test, builds the `.vsix`, publishes it to the VS Code Marketplace and Open VSX, and creates a GitHub release with the `.vsix` and the changelog notes. Run it from the Actions tab for a dry run that publishes nothing.
+The script raises the version, writes the `CHANGELOG.md` section, commits, tags and pushes. The notes come from a `## Unreleased` section if you wrote one, otherwise from the `feat:` and `fix:` commits since the last release. For the very first release, `npm run release -- current` releases the version already in `package.json`.
+
+Pushing the tag starts the Release workflow, which runs every test, builds the `.vsix`, publishes it to the VS Code Marketplace and Open VSX, and creates a GitHub release with the `.vsix` and the changelog notes. Run it from the Actions tab for a dry run that publishes nothing.
 
 It needs two repository secrets: `VSCE_PAT` (an Azure DevOps token with Marketplace → Manage, for all accessible organizations) and `OVSX_PAT` (an Open VSX access token). The Azure DevOps token expires after at most a year; when publishing fails with an authentication error, make a new one and replace the secret.
 
