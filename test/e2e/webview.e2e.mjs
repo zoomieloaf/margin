@@ -29,14 +29,14 @@ const browser = await puppeteer.launch({ executablePath, headless: true, args: [
 const mod = process.platform === 'darwin' ? 'Meta' : 'Control';
 let failures = 0;
 
-/** `settings`: `ai` (the margin.ai setting) and `aiEditor` (the editor has a model) for the init message. */
-async function open(text, mode = 'edit', settings = {}) {
+/** `settings`: `ai` (the margin.ai setting), `aiEditor` (the editor has a model) and `pageWidth` (a PageWidthState) for the init message; `viewport`: the page size. */
+async function open(text, mode = 'edit', settings = {}, viewport = { width: 1100, height: 800 }) {
   const page = await browser.newPage();
-  await page.setViewport({ width: 1100, height: 800 });
+  await page.setViewport(viewport);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.evaluateOnNewDocument((t, m, s) => { window.__initialText = t; window.__mode = m; window.__ai = s.ai; window.__aiEditor = s.aiEditor; }, text, mode, settings);
+  await page.evaluateOnNewDocument((t, m, s) => { window.__initialText = t; window.__mode = m; window.__ai = s.ai; window.__aiEditor = s.aiEditor; window.__pageWidth = s.pageWidth; }, text, mode, settings);
   await page.goto(harness);
   await page.waitForSelector('.ProseMirror');
   await page.waitForSelector('.app[data-mode]'); // the init message has been applied
@@ -844,6 +844,159 @@ await test('margin.ai = off hides every AI entry point; aiAvailable brings them 
   await fromHost(page, { type: 'aiAvailable', editor: true, setting: 'auto' });
   await sleep(30);
   assert.equal(await visible('.toolbar [data-act="ai"]'), true, 'back on');
+  await page.close();
+});
+
+// ---------------------------------------------------------------- page width
+
+const WIDE_SCREEN = { width: 1600, height: 900 };
+const WIDTH_DOC = '# Width\n\nA paragraph long enough to fill the whole text column at every one of the widths, so its box is as wide as the column itself and the test can measure it from the rendered page.\n\n## Second\n\nMore text.\n';
+/** The text column of each width in px (the box around it adds 72 px of padding on each side). */
+const COLUMN = { narrow: 600, normal: 716, wide: 1000 };
+const widthState = (width, override = null, setting = override ? 'normal' : width) => ({ width, setting, override });
+/** Width of the text column in the current mode, and what the page shows. */
+const measure = (page) => page.evaluate(() => {
+  const wrap = document.querySelector('.doc-wrap');
+  const mode = document.querySelector('.app').dataset.mode;
+  const content = mode === 'source' ? document.querySelector('textarea.source') : document.querySelector('.ProseMirror');
+  return {
+    width: document.querySelector('.app').dataset.width,
+    maxWidth: getComputedStyle(wrap).maxWidth,
+    column: Math.round(content.getBoundingClientRect().width),
+    scroll: document.querySelector('.scroll').clientWidth,
+    outline: !document.querySelector('.outline').hidden && document.querySelector('.outline').getBoundingClientRect().width > 0,
+  };
+});
+const expectColumn = (m, width) => (width === 'full' ? m.scroll - 2 * 72 : COLUMN[width]);
+
+await test('page width: init with each width sets data-width and the column width in Preview, Edit and Markdown', async () => {
+  for (const width of ['narrow', 'normal', 'wide', 'full']) {
+    const page = await open(WIDTH_DOC, 'preview', { pageWidth: widthState(width) }, WIDE_SCREEN);
+    for (const mode of ['preview', 'edit', 'source']) {
+      await page.click(`[data-mode="${mode}"]`);
+      await sleep(50);
+      const m = await measure(page);
+      assert.equal(m.width, width, `${width} ${mode}`);
+      assert.equal(m.maxWidth, width === 'full' ? '100%' : `${COLUMN[width] + 2 * 72}px`, `${width} ${mode}: max-width`);
+      assert.equal(m.column, expectColumn(m, width), `${width} ${mode}: column`);
+      assert.equal(m.outline, true, `${width} ${mode}: the outline still shows`);
+    }
+    // Full width is wider than Wide on this screen.
+    if (width === 'full') assert.ok((await measure(page)).column > COLUMN.wide);
+    assert.deepEqual(await posted(page, 'edit'), []);
+    assert.equal(await page.evaluate(() => window.host.text), WIDTH_DOC);
+    assert.deepEqual(page.errors, []);
+    await page.close();
+  }
+});
+
+await test('page width: without a width in init the page is Normal, the width the editor always had', async () => {
+  const page = await open(WIDTH_DOC, 'preview', {}, WIDE_SCREEN);
+  const m = await measure(page);
+  assert.deepEqual([m.width, m.maxWidth, m.column], ['normal', '860px', 716]);
+  await page.close();
+});
+
+await test('page width: the toolbar menu posts pageWidth and the page follows; Use default goes back', async () => {
+  const page = await open(WIDTH_DOC, 'preview', { pageWidth: widthState('normal') }, WIDE_SCREEN);
+  const outlineButton = await page.$eval('.toolbar [data-act="width"]', (b) => b.previousElementSibling?.dataset.act ?? b.nextElementSibling?.dataset.act);
+  assert.ok(['outline'].includes(outlineButton), 'next to the outline toggle');
+  await page.click('.toolbar [data-act="width"]');
+  await page.waitForSelector('.menu:not([hidden])');
+  const items = await page.$$eval('.menu .mi', (els) => els.map((e) => [e.dataset.id, e.querySelector('.mi-l').textContent, !!e.querySelector('.ck')]));
+  assert.deepEqual(items, [
+    ['narrow', 'Narrow', false], ['normal', 'Normal', false], ['wide', 'Wide', false], ['full', 'Full width', false],
+    ['default', 'Use default (Normal)', true],
+  ]);
+  await page.click('.menu .mi[data-id="wide"]');
+  await sleep(350); // the width transition
+  assert.deepEqual(await posted(page, 'pageWidth'), [{ type: 'pageWidth', value: 'wide' }]);
+  let m = await measure(page);
+  assert.deepEqual([m.width, m.column], ['wide', 1000]);
+
+  await page.click('.toolbar [data-act="width"]');
+  await page.waitForSelector('.menu:not([hidden])');
+  assert.deepEqual(await page.$$eval('.menu .mi', (els) => els.filter((e) => e.querySelector('.ck')).map((e) => e.dataset.id)), ['wide']);
+  await page.click('.menu .mi[data-id="default"]');
+  await sleep(350);
+  assert.deepEqual((await posted(page, 'pageWidth')).map((p) => p.value), ['wide', null]);
+  m = await measure(page);
+  assert.deepEqual([m.width, m.column], ['normal', 716]);
+  // The width changes nothing in the file, in any mode.
+  await page.click('[data-mode="edit"]');
+  await page.click('.toolbar [data-act="width"]');
+  await page.click('.menu .mi[data-id="narrow"]');
+  await sleep(350);
+  assert.equal((await measure(page)).column, 600);
+  await sleep(200);
+  assert.deepEqual(await posted(page, 'edit'), []);
+  assert.equal(await page.evaluate(() => window.host.text), WIDTH_DOC);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('page width: setPageWidth from the host applies; block handles and the selection bubble follow the column', async () => {
+  const page = await open(WIDTH_DOC, 'edit', { pageWidth: widthState('normal') }, WIDE_SCREEN);
+  await fromHost(page, { type: 'setPageWidth', ...widthState('full', 'full') });
+  await sleep(350);
+  let m = await measure(page);
+  assert.deepEqual([m.width, m.column], ['full', expectColumn(m, 'full')]);
+  await page.click('.toolbar [data-act="width"]');
+  await page.waitForSelector('.menu:not([hidden])');
+  assert.deepEqual(await page.$$eval('.menu .mi', (els) => els.filter((e) => e.querySelector('.ck')).map((e) => e.dataset.id)), ['full']);
+  await page.keyboard.press('Escape');
+
+  for (const width of ['full', 'narrow', 'wide']) {
+    if (width !== 'full') {
+      await fromHost(page, { type: 'setPageWidth', ...widthState(width, width) });
+      await sleep(350);
+    }
+    // Hovering a paragraph puts the handles just left of it, inside the page.
+    const p = await page.$eval('.ProseMirror p', (e) => { const r = e.getBoundingClientRect(); return { x: r.left + 40, y: r.top + 8, left: r.left }; });
+    await page.mouse.move(p.x, p.y + 30);
+    await page.mouse.move(p.x, p.y, { steps: 3 });
+    await sleep(50);
+    const g = await page.$eval('.gutter', (e) => ({ hidden: e.hidden, ...e.getBoundingClientRect().toJSON() }));
+    const scrollLeft = await page.$eval('.scroll', (e) => e.getBoundingClientRect().left);
+    assert.equal(g.hidden, false, `${width}: handles show`);
+    assert.ok(g.right <= p.left + 1 && g.right >= p.left - 40, `${width}: handles end at ${g.right}, the block starts at ${p.left}`);
+    assert.ok(g.left >= scrollLeft, `${width}: handles inside the page`);
+  }
+
+  // The bubble stays over the selection when the width changes under it.
+  await clickChar(page, '.ProseMirror p', 0, 2);
+  await page.keyboard.down('Shift');
+  for (let i = 0; i < 9; i++) await page.keyboard.press('ArrowRight');
+  await page.keyboard.up('Shift');
+  await page.waitForSelector('.bubble:not([hidden])');
+  await fromHost(page, { type: 'setPageWidth', ...widthState('narrow', 'narrow') });
+  await sleep(400);
+  const place = await page.evaluate(() => {
+    const sel = getSelection().getRangeAt(0).getBoundingClientRect();
+    const b = document.querySelector('.bubble');
+    const r = b.getBoundingClientRect();
+    return { hidden: b.hidden, gap: sel.top - r.bottom, overlap: Math.min(r.right, sel.right) - Math.max(r.left, sel.left) };
+  });
+  assert.equal(place.hidden, false);
+  assert.ok(place.gap >= 0 && place.gap < 30, `bubble ${place.gap}px above the selection`);
+  assert.ok(place.overlap > 0, 'bubble over the selection');
+  await sleep(200);
+  assert.deepEqual(await posted(page, 'edit'), []);
+  assert.deepEqual(await posted(page, 'pageWidth'), [], 'a width from the host is not sent back');
+  assert.equal(await page.evaluate(() => window.host.text), WIDTH_DOC);
+  assert.deepEqual(page.errors, []);
+  await page.close();
+});
+
+await test('page width: the width change is animated, except with reduced motion', async () => {
+  const page = await open(WIDTH_DOC, 'preview', { pageWidth: widthState('normal') }, WIDE_SCREEN);
+  const duration = () => page.$eval('.doc-wrap', (e) => getComputedStyle(e).transitionDuration);
+  assert.notEqual(await duration(), '0s');
+  await page.emulateMediaFeatures([{ name: 'prefers-reduced-motion', value: 'reduce' }]);
+  assert.equal(await duration(), '0s');
+  await fromHost(page, { type: 'setPageWidth', ...widthState('wide', 'wide') });
+  await sleep(20);
+  assert.equal((await measure(page)).column, 1000, 'at once');
   await page.close();
 });
 
