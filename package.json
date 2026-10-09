@@ -5,6 +5,13 @@
   "version": "0.1.0",
   "publisher": "zoomieloaf",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zoomieloaf/margin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zoomieloaf/margin/issues"
+  },
   "private": true,
   "type": "module",
   "icon": "media/icon.png",
