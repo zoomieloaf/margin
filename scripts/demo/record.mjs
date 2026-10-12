@@ -245,41 +245,59 @@ async function record() {
   await m.click();
   await sleep(700);
 
-  // 3. Slash menu: a callout after the intro paragraph.
-  const end = await textPoint(doc, para, 0, intro.length, 'end');
-  await m.move(end.x + 3, end.y, 450);
+  // 3. Hover the task list, + below it, a table from the slash menu, filled in with Tab.
+  const list = await box(doc, '.ProseMirror > ul', 0);
+  await m.move(list.x - 120, list.y, 450);
+  await sleep(250);
+  const add = await box(doc, '.gutter:not([hidden]) .g-add');
+  await m.move(add.x, add.y, 350);
   await m.click();
-  await sleep(250);
+  await sleep(350);
+  await page.keyboard.type('table', { delay: 60 });
+  await sleep(450);
   await page.keyboard.press('Enter');
-  await sleep(200);
-  await page.keyboard.type('/call', { delay: 70 });
-  await sleep(650);
-  await page.keyboard.press('Enter');
+  await sleep(300);
+  const cells = ['Service', 'Owner', 'Status', 'API', 'Dana', 'Live', 'Web app', 'Lee', 'Beta'];
+  for (let i = 0; i < cells.length; i++) {
+    if (i) await page.keyboard.press('Tab');
+    await page.keyboard.type(cells[i], { delay: 38 });
+  }
+  await sleep(500);
+
+  // 4. Drag the tip callout up, under the intro, by its ⋮⋮ handle.
+  const tip = await box(doc, '.ProseMirror > .callout', 0);
+  await m.move(tip.x - 150, tip.y, 450);
   await sleep(250);
-  await page.keyboard.type('Ship on Friday', { delay: 60 });
+  const grip = await box(doc, '.gutter:not([hidden]) .g-grip');
+  await m.move(grip.x, grip.y, 300);
+  const target = await box(doc, '.ProseMirror > h2', 0);
+  await m.drag(grip.x, target.y - 14, 700);
   await sleep(600);
 
-  // 4. Tick the second task.
+  // 5. Tick the second task.
   const cb = await box(doc, '.cb', 1);
   await m.move(cb.x, cb.y, 450);
   await m.click();
-  await sleep(700);
+  await sleep(600);
 
-  // 5. Follow a link, then Alt+Left back.
+  // 6. Follow a link from its card, then Alt+Left back.
   const link = await linkBox(doc, './guides/setup.md');
-  await m.move(link.x, link.y, 450);
+  await m.move(link.x, link.y, 400);
+  await sleep(300);
+  const open = await box(doc, '.linkcard:not([hidden]) [data-act="open"]');
+  await m.move(open.x, open.y, 300);
   await m.click();
   await marginFrame(page, 'Setup');
   await focusClick(page, m);
-  await sleep(1000);
+  await sleep(900);
   await page.keyboard.down('Alt');
   await page.keyboard.press('ArrowLeft');
   await page.keyboard.up('Alt');
   await marginFrame(page, 'Harbor');
   await focusClick(page, m);
-  await sleep(1200);
+  await sleep(700);
 
-  // 6. Source Control, README.md: VS Code's own diff of the Markdown.
+  // 7. Source Control, README.md: VS Code's own diff of the Markdown.
   await page.keyboard.down('Control');
   await page.keyboard.down('Shift');
   await page.keyboard.press('KeyG');
@@ -298,7 +316,7 @@ async function record() {
   await page.waitForSelector('.monaco-diff-editor', { timeout: 15000 });
   await sleep(600);
   await m.move(W * 0.93, H * 0.9, 600); // out of the way
-  await sleep(2500);
+  await sleep(2200);
 
   const frames = await rec.stop();
   console.log(`${frames.length} frames captured`);

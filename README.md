@@ -10,7 +10,7 @@ code --install-extension zoomieloaf.margin
 ```
 <!-- /github-only -->
 
-![Margin in VS Code: a Markdown page edited in place, a link followed to another page, and the git diff showing only the edited lines](media/demo.gif)
+![Margin in VS Code: a phrase made bold from the selection menu, a table added from the + handle, a callout dragged into place, a task ticked, a link followed to another page and back, and the git diff of the plain Markdown](media/demo.gif)
 
 ## What you get
 
