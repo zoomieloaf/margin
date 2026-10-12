@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3
+
+- A quieter Preview / Edit / Markdown switch: no borders, just a light tint on the active mode.
+- A new demo on the extension page: tables, block handles and links, ending on the git diff.
+
 ## 0.1.2
 
 - A tidier extension page: no install instructions on the page you install from, and the guide right after Get started.
