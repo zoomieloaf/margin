@@ -51,11 +51,11 @@ svg { flex: none; }
 /* ---------------------------------------------------------------- toolbar */
 .toolbar { flex: none; display: flex; align-items: center; gap: 2px; padding: 6px 12px; border-bottom: 1px solid var(--m-line); background: var(--m-bg); overflow-x: auto; scrollbar-width: none; }
 .toolbar::-webkit-scrollbar { display: none; }
-.seg { display: inline-flex; flex: none; background: var(--m-side); border: 1px solid var(--m-line); border-radius: 8px; padding: 2px; gap: 2px; }
+.seg { display: inline-flex; flex: none; gap: 2px; }
 .seg button { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--m-muted); font-weight: 500; font-size: 12.5px; cursor: pointer; }
 .seg button svg { width: 14px; height: 14px; }
 .seg button:hover { color: var(--m-fg); }
-.seg button[aria-pressed="true"] { background: var(--m-bg); color: var(--m-fg); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14), 0 0 0 1px var(--m-line); }
+.seg button[aria-pressed="true"] { background: color-mix(in srgb, var(--m-fg) 9%, transparent); color: var(--m-fg); }
 .tb { height: 28px; min-width: 28px; flex: none; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 0; border-radius: 6px; background: none; color: var(--m-fg); opacity: 0.86; cursor: pointer; padding: 0 6px; font-weight: 500; font-size: 12.5px; white-space: nowrap; }
 .tb svg { width: 16px; height: 16px; }
 .tb:hover { background: var(--m-hover); opacity: 1; }
