@@ -5,6 +5,8 @@
 //
 // VS Code runs isolated: a temporary user-data-dir, no other extensions, Margin from this folder
 // (dist/, so build first). Uses the installed VS Code, MARGIN_VSCODE, or the .vscode-test build.
+// MARGIN_E2E_ONLY=crlf.md runs one file; on a failure the file, a screenshot and the host's
+// messages are saved to MARGIN_E2E_OUT (default: the temp folder).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -108,6 +110,7 @@ const userData = path.join(tmp, 'user-data');
 mkdirSync(ws);
 mkdirSync(path.join(userData, 'User'), { recursive: true });
 const FILES = { 'lf.md': '\n', 'crlf.md': '\r\n' };
+const only = process.env.MARGIN_E2E_ONLY;
 const withEol = (text, eol) => text.replace(/\n/g, eol);
 for (const [name, eol] of Object.entries(FILES)) writeFileSync(path.join(ws, name), withEol(DOC, eol));
 
@@ -144,6 +147,8 @@ const code = spawn(exe, [
 
 let browser;
 let failures = 0;
+/** The Margin frame of the file being tested. */
+let lastFrame;
 try {
   for (let i = 0; ; i++) {
     try {
@@ -170,17 +175,21 @@ try {
   await sleep(1500);
 
   for (const [name, eol] of Object.entries(FILES)) {
+    if (only && name !== only) continue;
     try {
       await run(page, name, eol);
       console.log(`  ✓ ${name}: Preview, Edit and Markdown edits reach the file exactly`);
     } catch (e) {
       failures++;
-      console.error(`  ✗ ${name}: ${e.message}`);
+      console.error(`  ✗ ${name}: ${e.stack}`);
       // For diagnosis: the file as it is, and the window.
-      const out = path.join(tmpdir(), `margin-vscode-e2e-${name}`);
+      const dir = process.env.MARGIN_E2E_OUT ? path.resolve(process.env.MARGIN_E2E_OUT) : tmpdir();
+      mkdirSync(dir, { recursive: true });
+      const out = path.join(dir, `margin-vscode-e2e-${name}`);
       writeFileSync(`${out}.txt`, readFileSync(path.join(ws, name)));
       await page.screenshot({ path: `${out}.png` });
       console.error(`    file and screenshot: ${out}.txt, ${out}.png`);
+      try { console.error(`    host messages: ${(await lastFrame.evaluate(() => window.__messages)).join(', ')}`); } catch { /* frame gone */ }
     } finally {
       await closeAll(page);
     }
@@ -208,8 +217,17 @@ async function run(page, name, eol) {
     const q = r.getBoundingClientRect();
     return { x: q.left + 40, y: q.top + q.height / 2 };
   }, name);
-  await page.mouse.click(row.x, row.y);
+  await press(page, row.x, row.y);
   const doc = await marginFrame(page, 'Bakery notes');
+  // The host's messages, for the report when the file comes out wrong.
+  await doc.evaluate(() => {
+    window.__messages = [];
+    const t0 = performance.now();
+    addEventListener('message', (e) => {
+      if (e.data?.type) window.__messages.push(`${Math.round(performance.now() - t0)}ms ${e.data.type} v${e.data.version ?? ''}`);
+    });
+  });
+  lastFrame = doc;
   // A file opens in the mode last used: Preview, unless an earlier file left Margin in another.
   await click(page, doc, '[data-mode="preview"]');
   assert.equal(await doc.evaluate(() => document.querySelector('.app').dataset.mode), 'preview', 'shows Preview');
@@ -311,6 +329,17 @@ async function offset(frame) {
   return { x: bb.x, y: bb.y };
 }
 
+/**
+ * A real click: move there, press, release. (page.mouse.click sends both at once, and inside
+ * VS Code's webview they can arrive out of order and leave the editor with a press and no release.)
+ */
+async function press(page, x, y) {
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await sleep(40);
+  await page.mouse.up();
+}
+
 /** Clicks the middle of the n-th `selector` element. */
 async function click(page, frame, selector, n = 0) {
   await frame.waitForFunction((s, n) => document.querySelectorAll(s)[n], { timeout: 10000 }, selector, n);
@@ -319,7 +348,7 @@ async function click(page, frame, selector, n = 0) {
     return { x: q.left + q.width / 2, y: q.top + q.height / 2 };
   }, selector, n);
   const o = await offset(frame);
-  await page.mouse.click(r.x + o.x, r.y + o.y);
+  await press(page, r.x + o.x, r.y + o.y);
   await sleep(150);
 }
 
@@ -341,6 +370,6 @@ async function clickEnd(page, frame, selector, needle) {
   }, selector, needle);
   if (!r) throw new Error(`No ${selector} with "${needle}"`);
   const o = await offset(frame);
-  await page.mouse.click(r.x + o.x, r.y + o.y);
+  await press(page, r.x + o.x, r.y + o.y);
   await sleep(150);
 }

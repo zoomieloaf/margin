@@ -54,6 +54,16 @@ jobs:
       - run: npm run test:integration
       # Real typing in a real VS Code, with autosave, on LF and CRLF files: the file must match exactly.
       - run: npm run e2e:vscode
+        env:
+          MARGIN_E2E_OUT: e2e-out
+
+      - name: Keep what the VS Code e2e saw
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-vscode
+          path: e2e-out
+          if-no-files-found: ignore
 
       - name: Build the .vsix
         run: npm run package
