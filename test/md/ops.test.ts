@@ -242,6 +242,22 @@ describe('moveBlock', () => {
     expect(writeMarkdown(moved)).toBe(src);
     expectReparseStable(moved);
   });
+
+  it('keeps a single line break next to a # heading when the block beside it is edited', () => {
+    const src = '## Monday\nProof.\n## Tuesday\nBake.\n';
+    const doc = parseMarkdown(src);
+    const edited = updateBlock(updateBlock(doc, doc.blocks[1]!.id, para('Proof twice.')), doc.blocks[3]!.id, para('Bake, then cool.'));
+    expect(writeMarkdown(edited)).toBe('## Monday\nProof twice.\n## Tuesday\nBake, then cool.\n');
+    expectReparseStable(edited);
+  });
+
+  it('still separates two paragraphs that were on adjacent lines with a blank line', () => {
+    const src = '# T\nA\n\nB\n';
+    const doc = parseMarkdown(src);
+    const edited = insertBlock(doc, 2, para('New'), 'n1');
+    expect(writeMarkdown(edited)).toBe('# T\nA\n\nNew\n\nB\n');
+    expectReparseStable(edited);
+  });
 });
 
 describe('commit', () => {

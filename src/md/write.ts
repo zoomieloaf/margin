@@ -20,6 +20,8 @@ export interface RenderedBlock {
 }
 
 const touched = (b: SourceBlock) => b.dirty || b.original === null;
+/** An ATX heading ("## Title") is one line: nothing before or after it can merge into it. */
+const isAtxHeading = (text: string) => /^ {0,3}#{1,6}(?:[ \t]|$)/.test(text);
 const lineBreaks = (s: string) => s.match(/\r\n|\r|\n/g)?.length ?? 0;
 const isList = (b: SourceBlock | undefined): b is SourceBlock & { data: List } => b?.data.type === 'list';
 export const markerOf = (text: string): string | null => {
@@ -47,7 +49,8 @@ function listText(data: List, c: Conventions, avoid: Array<string | null>): stri
 /**
  * What writeMarkdown emits for each block. Untouched blocks and the gap between two untouched
  * blocks are exact. A gap next to a touched block is widened to a blank line when it has fewer
- * than two line breaks, so the blocks stay separate on re-parse.
+ * than two line breaks, so the blocks stay separate on re-parse; a single line break beside a
+ * # heading is kept, as nothing can merge into a one-line heading.
  */
 export function renderBlocks(doc: MdDocument): RenderedBlock[] {
   const c = doc.conventions;
@@ -67,7 +70,9 @@ export function renderBlocks(doc: MdDocument): RenderedBlock[] {
     } else {
       text = serializeBlock(b.data, c);
     }
-    const widen = prev !== undefined && (touched(b) || touched(prev)) && lineBreaks(b.gapBefore) < 2;
+    const breaks = lineBreaks(b.gapBefore);
+    const besideHeading = breaks === 1 && (isAtxHeading(out[i - 1]?.text ?? '') || isAtxHeading(text));
+    const widen = prev !== undefined && (touched(b) || touched(prev)) && breaks < 2 && !besideHeading;
     out.push({ gap: widen ? c.eol + c.eol : b.gapBefore, text });
   });
   return out;
