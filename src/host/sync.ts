@@ -29,8 +29,12 @@ export class DocumentSync implements vscode.Disposable {
     this.post({ type: 'reset', text: this.document.getText(), version: this.document.version });
   }
 
-  /** `seq`, when the webview sent one, is echoed in the ack. */
-  async applyEdit(version: number, edits: TextEdit[], seq?: number): Promise<void> {
+  /**
+   * `seq`, when the webview sent one, is echoed in the ack. `length` is the text length the
+   * webview expects afterwards: when the document came out different (VS Code changed line
+   * endings, say), the webview gets the file back instead of editing at offsets that drifted.
+   */
+  async applyEdit(version: number, edits: TextEdit[], seq?: number, length?: number): Promise<void> {
     const action = staleEditAction(version, this.document.version, this.lastResetVersion);
     if (action === 'drop') return; // the webview reloads from the reset already sent and drops this edit
     if (action === 'reset') {
@@ -49,7 +53,8 @@ export class DocumentSync implements vscode.Disposable {
       this.applying--;
     }
     // Exactly one version step means nothing else changed the document while we applied.
-    if (ok && this.document.version === version + 1) {
+    const agrees = length === undefined || this.document.getText().length === length;
+    if (ok && this.document.version === version + 1 && agrees) {
       this.post(seq === undefined ? { type: 'ack', version: this.document.version } : { type: 'ack', version: this.document.version, seq });
     } else {
       this.reset();

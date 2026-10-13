@@ -78,7 +78,8 @@ export interface WebviewSettings {
 export type WebviewToHost =
   | { type: 'ready' }
   /** `seq` numbers the webview's edits; the host echoes it in the ack. */
-  | { type: 'edit'; version: number; edits: TextEdit[]; seq?: number }
+  /** `length`: how long the text is once the edits are applied, as the webview sees it. */
+  | { type: 'edit'; version: number; edits: TextEdit[]; seq?: number; length?: number }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'mode'; mode: Mode }
@@ -161,7 +162,7 @@ export function isWebviewMessage(x: unknown): x is WebviewToHost {
     case 'focus': case 'blur': case 'resync':
       return true;
     case 'edit':
-      return isInt(x.version) && Array.isArray(x.edits) && x.edits.every(isEdit) && (x.seq === undefined || isInt(x.seq));
+      return isInt(x.version) && Array.isArray(x.edits) && x.edits.every(isEdit) && (x.seq === undefined || isInt(x.seq)) && (x.length === undefined || isInt(x.length));
     case 'mode':
       return typeof x.mode === 'string' && MODES.includes(x.mode);
     case 'stats':

@@ -132,7 +132,7 @@ export class MarginEditorProvider implements vscode.CustomTextEditorProvider, Pa
         }
         case 'edit':
           try {
-            await sync.applyEdit(m.version, m.edits, m.seq);
+            await sync.applyEdit(m.version, m.edits, m.seq, m.length);
           } catch (err) {
             // No ack would come and the webview would hold every later edit: resend the file instead.
             report(err);

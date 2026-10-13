@@ -54,7 +54,7 @@ class App implements AppApi, LinkCardHost {
   readonly menu: Menu;
   readonly view: EditorView;
   private readonly model = new DocModel(
-    (e, seq) => post({ type: 'edit', version: e.version, edits: e.edits, seq }),
+    (e, seq) => post({ type: 'edit', version: e.version, edits: e.edits, seq, length: e.length }),
     () => post({ type: 'resync' }),
   );
   private readonly root: HTMLElement;

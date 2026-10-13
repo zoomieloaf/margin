@@ -11,6 +11,8 @@ import { schema } from './schema';
 export interface OutgoingEdit {
   version: number;
   edits: TextEdit[];
+  /** The text's length once the edits are applied. */
+  length: number;
 }
 
 /**
@@ -36,6 +38,11 @@ export class DocModel {
   private resyncing = false;
   /** The text was edited in Markdown mode, so `doc` and the editor document are out of date. */
   private sourceAhead = false;
+  /**
+   * The file's line ending. VS Code turns every line break an edit inserts into it, so the text
+   * here uses it too: otherwise the two sides drift apart and later edits land at wrong offsets.
+   */
+  private eol: '\n' | '\r\n' = '\n';
   /** Callbacks waiting for the model to have nothing unsent or unacknowledged. */
   private idle: Array<() => void> = [];
   readonly newId = createIdGenerator('n');
@@ -48,6 +55,7 @@ export class DocModel {
 
   /** Parses `text` and returns the ProseMirror document to show. */
   load(text: string, version: number): PmNode {
+    this.eol = text.includes('\r\n') ? '\r\n' : '\n';
     this.text = text;
     this.sentText = text;
     this.version = version;
@@ -91,6 +99,7 @@ export class DocModel {
 
   /** Call with the Markdown-mode textarea's text after it changed. The editor document is rebuilt by leaveSource(). */
   sourceChanged(text: string): void {
+    text = this.withEol(text);
     if (text === this.text) return;
     this.text = text;
     this.sourceAhead = true;
@@ -117,7 +126,7 @@ export class DocModel {
     const node = blockToPm(block);
     this.doc = doc;
     this.seen.set(blockId, node);
-    this.text = writeMarkdown(doc);
+    this.text = this.withEol(writeMarkdown(doc));
     this.flush();
     return node;
   }
@@ -169,13 +178,18 @@ export class DocModel {
     return this.rebuild();
   }
 
+  /** `text` with every line break in the file's line ending. */
+  private withEol(text: string): string {
+    return this.eol === '\n' ? text : text.replace(/\r?\n/g, '\r\n');
+  }
+
   private flush(): void {
     if (this.inFlight || this.resyncing) return;
     const edit = diffToEdit(this.sentText, this.text);
     if (!edit) return;
     this.sentText = this.text;
     this.inFlight = true;
-    this.send({ version: this.version, edits: [edit] }, ++this.seq);
+    this.send({ version: this.version, edits: [edit], length: this.text.length }, ++this.seq);
   }
 
   /** Brings `doc` and `text` up to date with the editor document. */
@@ -201,7 +215,7 @@ export class DocModel {
     });
 
     this.seen = nodes;
-    this.text = writeMarkdown(doc);
+    this.text = this.withEol(writeMarkdown(doc));
     this.doc = commit(doc);
   }
 }

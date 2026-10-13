@@ -167,10 +167,10 @@ describe('DocModel', () => {
     state = state.apply(state.tr.insertText('?', 4));
     model.change(state.doc);
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toEqual({ version: 7, edits: [{ start: 2, end: 2, text: '!' }] });
+    expect(sent[0]).toEqual({ version: 7, edits: [{ start: 2, end: 2, text: '!' }], length: 4 });
     model.ack(8);
     expect(sent).toHaveLength(2);
-    expect(sent[1]).toEqual({ version: 8, edits: [{ start: 3, end: 3, text: '?' }] });
+    expect(sent[1]).toEqual({ version: 8, edits: [{ start: 3, end: 3, text: '?' }], length: 5 });
   });
 
   it('whenIdle runs at once when idle, otherwise only after every pending edit is acked', () => {
@@ -232,7 +232,7 @@ describe('DocModel', () => {
       const model = new DocModel((e) => sent.push(e));
       model.load('# A\n\nB\n', 3);
       model.sourceChanged('# A\n\nB!\n');
-      expect(sent).toEqual([{ version: 3, edits: [{ start: 6, end: 6, text: '!' }] }]);
+      expect(sent).toEqual([{ version: 3, edits: [{ start: 6, end: 6, text: '!' }], length: 8 }]);
       expect(model.markdown).toBe('# A\n\nB!\n');
     });
 
@@ -246,7 +246,7 @@ describe('DocModel', () => {
       expect(sent).toHaveLength(1);
       expect(model.busy).toBe(true);
       model.ack(2);
-      expect(sent[1]).toEqual({ version: 2, edits: [{ start: 3, end: 3, text: 'de' }] });
+      expect(sent[1]).toEqual({ version: 2, edits: [{ start: 3, end: 3, text: 'de' }], length: 6 });
     });
 
     it('rebuilds the editor document only when the mode is left', () => {
@@ -293,5 +293,43 @@ describe('DocModel', () => {
     expect(parseMarkdown(src).blocks).toHaveLength(3);
     t.model.change(t.state.doc);
     expect(t.sent).toEqual([]);
+  });
+
+  describe('files with CRLF line endings', () => {
+    /** Like VS Code: text inserted into a CRLF document gets CRLF line endings. */
+    const vscodeApply = (text: string, ed: { start: number; end: number; text: string }) =>
+      applyEdit(text, { ...ed, text: ed.text.replace(/\r?\n/g, '\r\n') });
+
+    it('new lines are sent as CRLF, so later edits land where they belong', () => {
+      const src = '## Monday\r\nProof.\r\n\r\n## Tuesday\r\nBake.\r\n';
+      const t = setup(src);
+      const sync = () => {
+        t.model.change(t.state.doc);
+        while (t.sent.length) {
+          const e = t.sent.shift()!;
+          for (const ed of e.edits) t.host.text = vscodeApply(t.host.text, ed);
+          t.host.version++;
+          t.model.ack(t.host.version);
+        }
+        expect(t.model.markdown).toBe(t.host.text);
+        return t.host.text;
+      };
+      // Enter at the end of "Server." and a new paragraph, then typing further down.
+      t.apply((s) => s.tr.setSelection(TextSelection.create(s.doc, t.posIn(1, 'Proof.'.length))));
+      t.run(splitBlock);
+      t.apply((s) => s.tr.insertText('New'));
+      sync();
+      t.apply((s) => s.tr.insertText(' twice', t.posIn(4, 'Bake.'.length)));
+      expect(sync()).toBe('## Monday\r\nProof.\r\n\r\nNew\r\n\r\n## Tuesday\r\nBake. twice\r\n');
+    });
+
+    it('Markdown mode: the textarea\'s LF text is sent with the file\'s CRLF', () => {
+      const sent: OutgoingEdit[] = [];
+      const model = new DocModel((e) => sent.push(e));
+      model.load('# A\r\n\r\nB\r\n', 3);
+      model.sourceChanged('# A\n\nB\nC\n');
+      expect(sent).toEqual([{ version: 3, edits: [{ start: 10, end: 10, text: 'C\r\n' }], length: 13 }]);
+      expect(model.markdown).toBe('# A\r\n\r\nB\r\nC\r\n');
+    });
   });
 });
