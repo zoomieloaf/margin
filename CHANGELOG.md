@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Fixed: editing a file with Windows (CRLF) line endings could put text in the wrong place, especially in Markdown mode.
+- A paragraph right under a heading stays on the next line when you edit it; no blank line is added.
+
 ## 0.1.3
 
 - A quieter Preview / Edit / Markdown switch: no borders, just a light tint on the active mode.
