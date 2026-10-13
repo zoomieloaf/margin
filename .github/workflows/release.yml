@@ -52,6 +52,8 @@ jobs:
       - run: npm test
       - run: npm run e2e
       - run: npm run test:integration
+      # Real typing in a real VS Code, with autosave, on LF and CRLF files: the file must match exactly.
+      - run: npm run e2e:vscode
 
       - name: Build the .vsix
         run: npm run package

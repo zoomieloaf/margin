@@ -331,6 +331,7 @@
     "test:watch": "vitest",
     "test:integration": "npm run build && node test/integration/run.mjs",
     "e2e": "npm run build && node test/e2e/webview.e2e.mjs",
+    "e2e:vscode": "npm run build && node test/vscode/edit.e2e.mjs",
     "typecheck": "tsc --noEmit",
     "icon": "node scripts/icon.mjs",
     "package": "npm run build:prod && node scripts/store-readme.mjs && vsce package --no-dependencies --readme-path README.store.md",
